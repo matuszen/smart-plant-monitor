@@ -1,0 +1,74 @@
+#include <algorithm>
+
+#include "pico/stdlib.h"
+
+#include "DataLogger.h"
+
+auto DataLogger::init() -> bool
+{
+  if (initialized_)
+  {
+    return true;
+  }
+
+  printf("[DataLogger] Initializing...\n");
+
+  logs_.reserve(Config::MAX_LOG_ENTRIES);
+
+  initialized_ = true;
+  printf("[DataLogger] Initialization complete\n");
+  return true;
+}
+
+void DataLogger::logData(const SensorData& data, const bool wasWatering)
+{
+  if (not initialized_)
+  {
+    return;
+  }
+
+  auto entry        = DataLogEntry{};
+  entry.data        = data;
+  entry.wasWatering = wasWatering;
+  entry.uploaded    = false;
+  entry.id          = nextLogId_++;
+
+  logs_.push_back(entry);
+
+  if (logs_.size() > Config::MAX_LOG_ENTRIES)
+  {
+    logs_.erase(logs_.begin());
+  }
+
+  printf("[DataLogger] Logged entry #%u (Soil: %.1f%%, Temp: %.1f°C, Water: %.1f%%)\n", entry.id,
+         data.soil.percentage, data.environment.temperature, data.water.percentage);
+}
+
+auto DataLogger::getUnuploadedLogs() const -> std::vector<DataLogEntry>
+{
+  auto result = std::vector<DataLogEntry>{};
+  std::copy_if(logs_.begin(), logs_.end(), std::back_inserter(result),
+               [](const DataLogEntry& e) { return not e.uploaded; });
+  return result;
+}
+
+void DataLogger::markAllAsUploaded()
+{
+  for (auto& log : logs_)
+  {
+    log.uploaded = true;
+  }
+  printf("[DataLogger] Marked %zu logs as uploaded\n", logs_.size());
+}
+
+void DataLogger::clearOldLogs(const size_t keepCount)
+{
+  if (logs_.size() <= keepCount)
+  {
+    return;
+  }
+
+  const auto toRemove = logs_.size() - keepCount;
+  logs_.erase(logs_.begin(), logs_.begin() + int(toRemove));
+  printf("[DataLogger] Cleared %d old logs\n", toRemove);
+}
