@@ -12,7 +12,7 @@ if (EXISTS ${picoVscode})
     include(${picoVscode})
 endif()
 # ====================================================================================
-set(PICO_BOARD pico CACHE STRING "Board type")
+set(PICO_BOARD pico2_w CACHE STRING "Board type")
 
 cmake_minimum_required(VERSION 3.13...3.27)
 
@@ -23,6 +23,7 @@ include(${CMAKE_CURRENT_LIST_DIR}/ext/pico-sdk/external/pico_sdk_import.cmake)
 project(smart_plant_monitor C CXX ASM)
 set(CMAKE_C_STANDARD 17)
 set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 pico_sdk_init()
 
@@ -42,21 +43,12 @@ add_executable(smart_plant_monitor ${SOURCES})
 
 target_link_libraries(smart_plant_monitor
     pico_stdlib
+    pico_cyw43_arch_lwip_threadsafe_background
     hardware_adc
     hardware_i2c
     hardware_gpio
     hardware_pwm
-    hardware_rtc
 )
-
-if(PICO_BOARD STREQUAL "pico_w" OR PICO_BOARD STREQUAL "pico2_w")
-    target_link_libraries(smart_plant_monitor
-        pico_cyw43_arch_lwip_threadsafe_background
-    )
-    message(STATUS "Building for ${PICO_BOARD} - WiFi support enabled")
-else()
-    message(STATUS "Building for ${PICO_BOARD} - WiFi support disabled")
-endif()
 
 pico_enable_stdio_usb(smart_plant_monitor 1)
 pico_enable_stdio_uart(smart_plant_monitor 0)
