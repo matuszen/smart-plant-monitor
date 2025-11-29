@@ -1,9 +1,7 @@
 #pragma once
 
-#include <algorithm>
-#include <memory>
+#include <cstdint>
 
-#include "Config.h"
 #include "SensorManager.h"
 #include "Types.h"
 
@@ -46,7 +44,7 @@ private:
   bool           isWatering_{false};
 
   uint32_t wateringStartTime_{0};
-  uint32_t wateringDuration_{5000};
+  uint32_t wateringDuration_{5'000};
   uint32_t lastWateringTime_{0};
 
   static void        activateRelay(bool enable);

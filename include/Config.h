@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <string_view>
 
@@ -50,10 +51,10 @@ inline constexpr uint32_t WATER_CHECK_INTERVAL_MS{60'000};
 inline constexpr uint32_t DATA_SEND_INTERVAL_MS{60'000};
 inline constexpr uint32_t STATUS_LED_BLINK_MS{1'000};
 
-inline constexpr size_t MAX_LOG_ENTRIES{1000};
+inline constexpr size_t MAX_LOG_ENTRIES{1'000};
 inline constexpr bool   ENABLE_FLASH_LOGGING{false};
 
 inline constexpr bool     ENABLE_SERIAL_DEBUG{true};
-inline constexpr uint32_t SERIAL_BAUD_RATE{115200};
+inline constexpr uint32_t SERIAL_BAUD_RATE{115'200};
 
 }  // namespace Config

@@ -1,8 +1,11 @@
 #include <algorithm>
+#include <cstdio>
+#include <iterator>
+#include <vector>
 
-#include "pico/stdlib.h"
-
+#include "Config.h"
 #include "DataLogger.h"
+#include "Types.h"
 
 auto DataLogger::init() -> bool
 {
@@ -47,8 +50,8 @@ void DataLogger::logData(const SensorData& data, const bool wasWatering)
 auto DataLogger::getUnuploadedLogs() const -> std::vector<DataLogEntry>
 {
   auto result = std::vector<DataLogEntry>{};
-  std::copy_if(logs_.begin(), logs_.end(), std::back_inserter(result),
-               [](const DataLogEntry& e) { return not e.uploaded; });
+  std::ranges::copy_if(logs_, std::back_inserter(result),
+                       [](const DataLogEntry& e) -> bool { return not e.uploaded; });
   return result;
 }
 

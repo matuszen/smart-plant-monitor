@@ -1,11 +1,18 @@
 #include <algorithm>
+#include <cstdint>
+#include <cstdio>
+#include <memory>
 
-#include "hardware/adc.h"
-#include "hardware/gpio.h"
-#include "hardware/i2c.h"
-#include "pico/stdlib.h"
+#include <hardware/adc.h>
+#include <hardware/gpio.h>
+#include <hardware/i2c.h>
+#include <hardware/structs/io_bank0.h>
+#include <pico/time.h>
 
+#include "BME280.h"
+#include "Config.h"
 #include "SensorManager.h"
+#include "Types.h"
 
 auto SensorManager::init() -> bool
 {

@@ -1,7 +1,7 @@
 #pragma once
 
+#include <cstdint>
 #include <memory>
-#include <optional>
 
 #include "BME280.h"
 #include "Config.h"

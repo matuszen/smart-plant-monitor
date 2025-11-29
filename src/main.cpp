@@ -1,13 +1,18 @@
+#include <cstdint>
 #include <cstdio>
 
-#include "hardware/gpio.h"
-#include "pico/stdlib.h"
+#include <hardware/gpio.h>
+#include <pico/stdio.h>
+#include <pico/time.h>
 
 #include "Config.h"
 #include "DataLogger.h"
 #include "IrrigationController.h"
 #include "SensorManager.h"
 #include "Types.h"
+
+namespace
+{
 
 SensorManager        sensorManager;
 IrrigationController irrigationController(&sensorManager);
@@ -107,8 +112,16 @@ void mainLoop()
     printf("  Soil Moisture: ");
     if (data.soil.isValid())
     {
-      printf("%.1f%% (raw=%u) - %s\n", data.soil.percentage, data.soil.rawValue,
-             data.soil.isDry() ? "DRY" : (data.soil.isWet() ? "WET" : "OK"));
+      const auto* soilStatus = "OK";
+      if (data.soil.isDry())
+      {
+        soilStatus = "DRY";
+      }
+      else if (data.soil.isWet())
+      {
+        soilStatus = "WET";
+      }
+      printf("%.1f%% (raw=%u) - %s\n", data.soil.percentage, data.soil.rawValue, soilStatus);
     }
     else
     {
@@ -118,8 +131,16 @@ void mainLoop()
     printf("  Water Level: ");
     if (data.water.isValid())
     {
-      printf("%.1f%% (raw=%u) - %s\n", data.water.percentage, data.water.rawValue,
-             data.water.isEmpty() ? "EMPTY!" : (data.water.isLow() ? "LOW" : "OK"));
+      const auto* statusMessage = "OK";
+      if (data.water.isEmpty())
+      {
+        statusMessage = "EMPTY!";
+      }
+      else if (data.water.isLow())
+      {
+        statusMessage = "LOW";
+      }
+      printf("%.1f%% (raw=%u) - %s\n", data.water.percentage, data.water.rawValue, statusMessage);
     }
     else
     {
@@ -138,10 +159,12 @@ void mainLoop()
   sleep_ms(100);
 }
 
+}  // namespace
+
 auto main() -> int
 {
   stdio_init_all();
-  sleep_ms(2000);
+  sleep_ms(5'000);
 
   initSystem();
 

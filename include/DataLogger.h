@@ -1,9 +1,9 @@
 #pragma once
 
-#include <algorithm>
+#include <cstddef>
+#include <cstdint>
 #include <vector>
 
-#include "Config.h"
 #include "Types.h"
 
 class DataLogger final

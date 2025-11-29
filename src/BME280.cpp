@@ -3,13 +3,14 @@
 #include <cstring>
 #include <optional>
 
-#include "pico/stdlib.h"
+#include <hardware/i2c.h>
+#include <pico/time.h>
 
 #include "BME280.h"
-#include "Config.h"
 
 namespace Reg
 {
+
 constexpr uint8_t ID        = 0xD0;
 constexpr uint8_t RESET     = 0xE0;
 constexpr uint8_t CTRL_HUM  = 0xF2;
@@ -19,8 +20,8 @@ constexpr uint8_t CONFIG    = 0xF5;
 constexpr uint8_t PRESS_MSB = 0xF7;
 constexpr uint8_t CALIB00   = 0x88;
 constexpr uint8_t CALIB26   = 0xE1;
+constexpr uint8_t CHIP_ID   = 0x60;
 
-constexpr uint8_t CHIP_ID = 0x60;
 }  // namespace Reg
 
 BME280::BME280(i2c_inst_t* i2c, const uint8_t address) : i2c_(i2c), address_(address)
@@ -80,8 +81,8 @@ auto BME280::read() -> std::optional<BME280::Measurement>
 
   auto measurement        = Measurement{};
   measurement.temperature = float(temp) / 100.0F;
-  measurement.pressure    = float(press) / 25600.0F;
-  measurement.humidity    = float(hum) / 1024.0F;
+  measurement.pressure    = float(press) / 25'600.0F;
+  measurement.humidity    = float(hum) / 1'024.0F;
 
   return measurement;
 }
@@ -151,7 +152,7 @@ auto BME280::compensateTemperature(const int32_t adcT) -> int32_t
 
 auto BME280::compensatePressure(const int32_t adcP) const -> uint32_t
 {
-  auto var1 = static_cast<int64_t>(t_fine_) - 128000;
+  auto var1 = static_cast<int64_t>(t_fine_) - 128'000;
   auto var2 = var1 * var1 * static_cast<int64_t>(calib_.dig_P6);
   var2      = var2 + ((var1 * static_cast<int64_t>(calib_.dig_P5)) << 17);
   var2      = var2 + ((static_cast<int64_t>(calib_.dig_P4)) << 35);
@@ -164,8 +165,8 @@ auto BME280::compensatePressure(const int32_t adcP) const -> uint32_t
     return 0;
   }
 
-  int64_t p = 1048576 - adcP;
-  p         = (((p << 31) - var2) * 3125) / var1;
+  int64_t p = 1'048'576 - adcP;
+  p         = (((p << 31) - var2) * 3'125) / var1;
   var1      = (static_cast<int64_t>(calib_.dig_P9) * (p >> 13) * (p >> 13)) >> 25;
   var2      = (static_cast<int64_t>(calib_.dig_P8) * p) >> 19;
   p         = ((p + var1 + var2) >> 8) + ((static_cast<int64_t>(calib_.dig_P7)) << 4);
@@ -175,23 +176,23 @@ auto BME280::compensatePressure(const int32_t adcP) const -> uint32_t
 
 auto BME280::compensateHumidity(const int32_t adcH) const -> uint32_t
 {
-  auto vX1U32r = t_fine_ - 76800;
+  auto vX1U32r = t_fine_ - 76'800;
   vX1U32r      = (((((adcH << 14) - (static_cast<int32_t>(calib_.dig_H4) << 20) -
                 (static_cast<int32_t>(calib_.dig_H5) * vX1U32r)) +
-               16384) >>
+               16'384) >>
               15) *
              (((((((vX1U32r * static_cast<int32_t>(calib_.dig_H6)) >> 10) *
-                  (((vX1U32r * static_cast<int32_t>(calib_.dig_H3)) >> 11) + 32768)) >>
+                  (((vX1U32r * static_cast<int32_t>(calib_.dig_H3)) >> 11) + 32'768)) >>
                  10) +
-                2097152) *
+                2'097'152) *
                  static_cast<int32_t>(calib_.dig_H2) +
-               8192) >>
+               8'192) >>
               14));
   vX1U32r =
     vX1U32r -
     (((((vX1U32r >> 15) * (vX1U32r >> 15)) >> 7) * static_cast<int32_t>(calib_.dig_H1)) >> 4);
   vX1U32r = (vX1U32r < 0) ? 0 : vX1U32r;
-  vX1U32r = (vX1U32r > 419430400) ? 419430400 : vX1U32r;
+  vX1U32r = (vX1U32r > 419'430'400) ? 419'430'400 : vX1U32r;
 
   return static_cast<uint32_t>(vX1U32r >> 12);
 }
