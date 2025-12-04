@@ -137,10 +137,14 @@ auto IrrigationController::shouldStartWatering() const -> bool
     return false;
   }
 
-  const auto waterData = sensorManager_->readWaterLevel();
-  if (not waterData.valid or waterData.isEmpty())
+  const auto reservoir = sensorManager_->readResistiveWaterLevel();
+  if (not reservoir.valid)
   {
-    printf("[IrrigationController] Water tank is empty!\n");
+    return false;
+  }
+
+  if (reservoir.isLow())
+  {
     return false;
   }
 

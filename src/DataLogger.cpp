@@ -43,8 +43,21 @@ void DataLogger::logData(const SensorData& data, const bool wasWatering)
     logs_.erase(logs_.begin());
   }
 
-  printf("[DataLogger] Logged entry #%u (Soil: %.1f%%, Temp: %.1f°C, Water: %.1f%%)\n", entry.id,
-         data.soil.percentage, data.environment.temperature, data.water.percentage);
+  const bool  hasReservoirData = data.waterResistive.isValid();
+  const char* reservoirStatus  = "N/A";
+  if (hasReservoirData)
+  {
+    reservoirStatus = data.waterResistive.isLow() ? "LOW" : "OK";
+  }
+  const uint16_t reservoirRaw = hasReservoirData ? data.waterResistive.rawValue : 0U;
+
+  printf("[DataLogger] Logged entry #%u (Soil: %.1f%%, Temp: %.1f°C, Reservoir: %s", entry.id,
+         data.soil.percentage, data.environment.temperature, reservoirStatus);
+  if (hasReservoirData)
+  {
+    printf(" raw=%u", reservoirRaw);
+  }
+  printf(")\n");
 }
 
 auto DataLogger::getUnuploadedLogs() const -> std::vector<DataLogEntry>
