@@ -37,13 +37,13 @@ set(SOURCES
     src/SensorManager.cpp
     src/IrrigationController.cpp
     src/DataLogger.cpp
+    src/WaterLevelSensor.cpp
 )
 
 add_executable(smart_plant_monitor ${SOURCES})
 
 target_link_libraries(smart_plant_monitor
     pico_stdlib
-    pico_cyw43_arch_lwip_threadsafe_background
     hardware_adc
     hardware_i2c
     hardware_gpio

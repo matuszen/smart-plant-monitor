@@ -1,13 +1,18 @@
+#include <cstdint>
 #include <cstdio>
 
-#include "hardware/gpio.h"
-#include "pico/stdlib.h"
+#include <hardware/gpio.h>
+#include <pico/stdio.h>
+#include <pico/time.h>
 
 #include "Config.h"
 #include "DataLogger.h"
 #include "IrrigationController.h"
 #include "SensorManager.h"
 #include "Types.h"
+
+namespace
+{
 
 SensorManager        sensorManager;
 IrrigationController irrigationController(&sensorManager);
@@ -27,7 +32,7 @@ void initSystem()
   printf("=================================================\n\n");
 
   gpio_init(Config::STATUS_LED_PIN);
-  gpio_set_dir(Config::STATUS_LED_PIN, false);
+  gpio_set_dir(Config::STATUS_LED_PIN, GPIO_OUT);
   gpio_put(Config::STATUS_LED_PIN, true);
 
   if (not sensorManager.init())
@@ -36,9 +41,9 @@ void initSystem()
     while (true)
     {
       gpio_put(Config::STATUS_LED_PIN, true);
-      sleep_ms(100);
+      sleep_ms(200);
       gpio_put(Config::STATUS_LED_PIN, false);
-      sleep_ms(100);
+      sleep_ms(200);
     }
   }
 
@@ -63,9 +68,11 @@ void initSystem()
   printf("System Configuration:\n");
   printf("- BME280 (I2C0): GP%d (SDA), GP%d (SCL)\n", Config::BME280_SDA_PIN,
          Config::BME280_SCL_PIN);
-  printf("- Soil Moisture: GP%d (ADC%d)\n", Config::SOIL_MOISTURE_PIN, Config::SOIL_MOISTURE_ADC);
-  printf("- Water Level: GP%d (ADC%d), Power: GP%d\n", Config::WATER_LEVEL_SIGNAL_PIN,
-         Config::WATER_LEVEL_ADC, Config::WATER_LEVEL_POWER_PIN);
+  printf("- Soil Moisture: GP%d (ADC%d)\n", Config::SOIL_MOISTURE_ADC_PIN,
+         Config::SOIL_MOISTURE_ADC_CHANNEL);
+  printf("- Water Level: Grove sensor on I2C%u (addr 0x%02X/0x%02X)\n",
+         Config::WATER_LEVEL_I2C_INSTANCE, Config::WATER_LEVEL_LOW_ADDR,
+         Config::WATER_LEVEL_HIGH_ADDR);
   printf("- Relay (Pump): GP%d\n", Config::RELAY_PIN);
   printf("- Status LED: GP%d\n", Config::STATUS_LED_PIN);
   printf("=================================================\n\n");
@@ -107,19 +114,16 @@ void mainLoop()
     printf("  Soil Moisture: ");
     if (data.soil.isValid())
     {
-      printf("%.1f%% (raw=%u) - %s\n", data.soil.percentage, data.soil.rawValue,
-             data.soil.isDry() ? "DRY" : (data.soil.isWet() ? "WET" : "OK"));
-    }
-    else
-    {
-      printf("Error\n");
-    }
-
-    printf("  Water Level: ");
-    if (data.water.isValid())
-    {
-      printf("%.1f%% (raw=%u) - %s\n", data.water.percentage, data.water.rawValue,
-             data.water.isEmpty() ? "EMPTY!" : (data.water.isLow() ? "LOW" : "OK"));
+      const auto* soilStatus = "OK";
+      if (data.soil.isDry())
+      {
+        soilStatus = "DRY";
+      }
+      else if (data.soil.isWet())
+      {
+        soilStatus = "WET";
+      }
+      printf("%.1f%% (raw=%u) - %s\n", data.soil.percentage, data.soil.rawValue, soilStatus);
     }
     else
     {
@@ -128,6 +132,23 @@ void mainLoop()
 
     printf("  Irrigation: %s (Mode: %d)\n", irrigationController.isWatering() ? "ACTIVE" : "Idle",
            static_cast<int>(irrigationController.getMode()));
+
+    printf("  Water Level: ");
+    if (data.waterLevelAvailable)
+    {
+      if (data.water.isValid())
+      {
+        printf("%.0f%% (depth=%umm)\n", data.water.percentage, data.water.rawValue);
+      }
+      else
+      {
+        printf("Unavailable\n");
+      }
+    }
+    else
+    {
+      printf("Disabled\n");
+    }
 
     dataLogger.logData(data, irrigationController.isWatering());
 
@@ -138,10 +159,12 @@ void mainLoop()
   sleep_ms(100);
 }
 
+}  // namespace
+
 auto main() -> int
 {
   stdio_init_all();
-  sleep_ms(2000);
+  sleep_ms(5'000);
 
   initSystem();
 

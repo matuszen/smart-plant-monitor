@@ -1,10 +1,14 @@
 #include <algorithm>
+#include <cstdint>
+#include <cstdio>
 
-#include "hardware/gpio.h"
-#include "pico/stdlib.h"
+#include <hardware/gpio.h>
+#include <pico/time.h>
 
+#include "Config.h"
 #include "IrrigationController.h"
 #include "SensorManager.h"
+#include "Types.h"
 
 IrrigationController::IrrigationController(SensorManager* sensorManager)
   : sensorManager_(sensorManager)
@@ -133,10 +137,13 @@ auto IrrigationController::shouldStartWatering() const -> bool
     return false;
   }
 
-  const auto waterData = sensorManager_->readWaterLevel();
-  if (not waterData.valid or waterData.isEmpty())
+  const auto waterLevel = sensorManager_->readWaterLevel();
+  if (not waterLevel.isValid())
   {
-    printf("[IrrigationController] Water tank is empty!\n");
+    return false;
+  }
+  if (waterLevel.isLow())
+  {
     return false;
   }
 

@@ -1,9 +1,8 @@
 #pragma once
 
-#include <chrono>
 #include <concepts>
 #include <cstdint>
-#include <optional>
+#include <type_traits>
 
 template <typename T>
 concept Numeric = std::is_arithmetic_v<T>;
@@ -64,7 +63,7 @@ struct SoilMoistureData
 struct WaterLevelData
 {
   float    percentage{0.0F};
-  uint16_t rawValue{0};
+  uint16_t rawValue{0};  // Represents estimated depth in millimeters.
   bool     valid{false};
 
   [[nodiscard]] constexpr auto isValid() const noexcept -> bool
@@ -90,11 +89,13 @@ struct SensorData
   BME280Data       environment;
   SoilMoistureData soil;
   WaterLevelData   water;
+  bool             waterLevelAvailable{false};
   uint32_t         timestamp{0};
 
   [[nodiscard]] constexpr auto allValid() const noexcept -> bool
   {
-    return environment.isValid() and soil.isValid() and water.isValid();
+    return environment.isValid() and soil.isValid() and
+           (not waterLevelAvailable or water.isValid());
   }
 };
 

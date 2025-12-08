@@ -1,11 +1,14 @@
 #pragma once
 
+#include <cstdint>
 #include <memory>
-#include <optional>
+
+#include <hardware/i2c.h>
 
 #include "BME280.h"
 #include "Config.h"
 #include "Types.h"
+#include "WaterLevelSensor.h"
 
 class SensorManager final
 {
@@ -27,7 +30,6 @@ public:
   [[nodiscard]] auto readWaterLevel() const -> WaterLevelData;
 
   void calibrateSoilMoisture(uint16_t dryValue, uint16_t wetValue) noexcept;
-  void calibrateWaterLevel(uint16_t emptyValue, uint16_t fullValue) noexcept;
 
   [[nodiscard]] auto isInitialized() const noexcept -> bool
   {
@@ -39,16 +41,17 @@ public:
   }
 
 private:
-  bool                    initialized_{false};
-  std::unique_ptr<BME280> bme280_;
+  bool                              initialized_{false};
+  std::unique_ptr<BME280>           bme280_;
+  std::unique_ptr<WaterLevelSensor> waterSensor_;
+  mutable bool                      waterSensorMissingLogged_{false};
+  mutable bool                      waterSensorReadFailedLogged_{false};
 
   uint16_t soilDryValue_{Config::SOIL_DRY_VALUE};
   uint16_t soilWetValue_{Config::SOIL_WET_VALUE};
-  uint16_t waterEmptyValue_{Config::WATER_EMPTY_THRESHOLD};
-  uint16_t waterFullValue_{Config::WATER_FULL_THRESHOLD};
 
   [[nodiscard]] static auto readADC(uint8_t channel) -> uint16_t;
   [[nodiscard]] static auto mapToPercentage(uint16_t value, uint16_t minVal,
                                             uint16_t maxVal) noexcept -> float;
-  static void               powerWaterSensor(bool enable);
+  static void               scanI2CBus(i2c_inst_t* bus, uint8_t instanceId);
 };
