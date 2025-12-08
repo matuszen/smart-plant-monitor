@@ -46,13 +46,18 @@ auto SensorManager::init() -> bool
   printf("[SensorManager] Initializing...\n");
 
   adc_init();
-  adc_gpio_init(Config::SOIL_MOISTURE_PIN);
+  adc_gpio_init(Config::SOIL_MOISTURE_ADC_PIN);
+  gpio_init(Config::SOIL_MOISTURE_POWER_UP_PIN);
+  gpio_set_dir(Config::SOIL_MOISTURE_POWER_UP_PIN, GPIO_OUT);
+  gpio_put(Config::SOIL_MOISTURE_POWER_UP_PIN, false);
 
-  auto* bmeI2C = resolveI2CInstance(Config::BME280_I2C_INSTANCE);
-  auto* waterI2C =
-    Config::WATER_LEVEL_I2C_ENABLED ? resolveI2CInstance(Config::WATER_LEVEL_I2C_INSTANCE) : bmeI2C;
-  const bool waterInstanceInvalid = Config::WATER_LEVEL_I2C_ENABLED and (waterI2C == nullptr);
-  if ((bmeI2C == nullptr) or waterInstanceInvalid)
+  auto* bmeI2C   = resolveI2CInstance(Config::BME280_I2C_INSTANCE);
+  auto* waterI2C = resolveI2CInstance(Config::WATER_LEVEL_I2C_INSTANCE);
+
+  const bool waterInstanceInvalid  = waterI2C == nullptr;
+  const bool bme280InstanceInvalid = bmeI2C == nullptr;
+
+  if (bme280InstanceInvalid or waterInstanceInvalid)
   {
     printf("[SensorManager] ERROR: Unsupported I2C instance (BME=%u, Water=%u)\n",
            Config::BME280_I2C_INSTANCE, Config::WATER_LEVEL_I2C_INSTANCE);
@@ -64,10 +69,9 @@ auto SensorManager::init() -> bool
   const uint32_t bmeBaudRate =
     sharedBus ? std::min(Config::BME280_I2C_BAUDRATE, waterBaud) : Config::BME280_I2C_BAUDRATE;
 
-  printf("[SensorManager] I2C config -> BME inst=%u, Water inst=%u (%s), shared=%s, BME baud=%lu, "
+  printf("[SensorManager] I2C config -> BME inst=%u, Water inst=%u, shared=%s, BME baud=%lu, "
          "Water baud=%lu\n",
-         Config::BME280_I2C_INSTANCE, Config::WATER_LEVEL_I2C_INSTANCE,
-         Config::WATER_LEVEL_I2C_ENABLED ? "enabled" : "disabled", sharedBus ? "yes" : "no",
+         Config::BME280_I2C_INSTANCE, Config::WATER_LEVEL_I2C_INSTANCE, sharedBus ? "yes" : "no",
          static_cast<unsigned long>(bmeBaudRate), static_cast<unsigned long>(waterBaud));
 
   i2c_init(bmeI2C, bmeBaudRate);
@@ -76,7 +80,7 @@ auto SensorManager::init() -> bool
   gpio_pull_up(Config::BME280_SDA_PIN);
   gpio_pull_up(Config::BME280_SCL_PIN);
 
-  if (Config::WATER_LEVEL_I2C_ENABLED and not sharedBus)
+  if (not sharedBus)
   {
     i2c_init(waterI2C, Config::WATER_LEVEL_I2C_BAUDRATE);
     gpio_set_function(Config::WATER_LEVEL_SDA_PIN, GPIO_FUNC_I2C);
@@ -85,18 +89,17 @@ auto SensorManager::init() -> bool
     gpio_pull_up(Config::WATER_LEVEL_SCL_PIN);
   }
 
-  if (Config::ENABLE_SERIAL_DEBUG)
+  if constexpr (Config::ENABLE_SERIAL_DEBUG)
   {
     printf("[SensorManager] Scanning I2C bus for devices...\n");
     scanI2CBus(bmeI2C, Config::BME280_I2C_INSTANCE);
-    if (Config::WATER_LEVEL_I2C_ENABLED and not sharedBus)
+    if (not sharedBus)
     {
       scanI2CBus(waterI2C, Config::WATER_LEVEL_I2C_INSTANCE);
     }
   }
 
   bme280_.reset();
-  uint8_t lastAddress = 0xFF;
 
   printf("[SensorManager] Probing BME280 at 0x%02X on I2C%u...\n", Config::BME280_I2C_ADDRESS,
          Config::BME280_I2C_INSTANCE);
@@ -118,21 +121,11 @@ auto SensorManager::init() -> bool
     printf("[SensorManager] WARNING: BME280 not found or failed to initialize\n");
   }
 
-  if (Config::WATER_LEVEL_I2C_ENABLED)
+  waterSensor_ = std::make_unique<WaterLevelSensor>(waterI2C);
+  if (waterSensor_ and not waterSensor_->init())
   {
-    waterSensor_ = std::make_unique<WaterLevelSensor>(waterI2C);
-    if (waterSensor_ and not waterSensor_->init())
-    {
-      printf("[SensorManager] WARNING: Water level sensor not detected\n");
-      waterSensor_.reset();
-    }
-  }
-
-  resistiveWaterSensor_ = std::make_unique<ResistiveWaterLevelSensor>();
-  if (resistiveWaterSensor_ and not resistiveWaterSensor_->init())
-  {
-    printf("[SensorManager] WARNING: Resistive water level sensor init failed\n");
-    resistiveWaterSensor_.reset();
+    printf("[SensorManager] WARNING: Water level sensor not detected\n");
+    waterSensor_.reset();
   }
 
   initialized_ = true;
@@ -142,21 +135,12 @@ auto SensorManager::init() -> bool
 
 auto SensorManager::readAllSensors() -> SensorData
 {
-  auto data        = SensorData{};
-  data.timestamp   = to_ms_since_boot(get_absolute_time());
-  data.environment = readBME280();
-  data.soil        = readSoilMoisture();
-  if (Config::WATER_LEVEL_I2C_ENABLED)
-  {
-    data.water = readWaterLevel();
-  }
-  else
-  {
-    data.water = WaterLevelData{};
-  }
-
-  data.waterResistive = readResistiveWaterLevel();
-
+  auto data                = SensorData{};
+  data.timestamp           = to_ms_since_boot(get_absolute_time());
+  data.waterLevelAvailable = waterSensor_ != nullptr;
+  data.environment         = readBME280();
+  data.soil                = readSoilMoisture();
+  data.water               = readWaterLevel();
   return data;
 }
 
@@ -181,51 +165,13 @@ auto SensorManager::readBME280() -> BME280Data
   return data;
 }
 
-auto SensorManager::readResistiveWaterLevel() const -> ResistiveWaterData
-{
-  auto data = ResistiveWaterData{};
-
-  if (not resistiveWaterSensor_)
-  {
-    cachedResistiveWaterData_ = {};
-    return cachedResistiveWaterData_;
-  }
-
-  const uint32_t now           = to_ms_since_boot(get_absolute_time());
-  const uint32_t refreshPeriod = Config::WATER_CHECK_INTERVAL_MS;
-  if (cachedResistiveWaterData_.isValid() and refreshPeriod > 0 and
-      (now - lastResistiveWaterReadMs_) < refreshPeriod)
-  {
-    return cachedResistiveWaterData_;
-  }
-
-  const auto reading = resistiveWaterSensor_->read();
-  if (not reading)
-  {
-    if (cachedResistiveWaterData_.isValid())
-    {
-      return cachedResistiveWaterData_;
-    }
-    cachedResistiveWaterData_ = {};
-    lastResistiveWaterReadMs_ = now;
-    return cachedResistiveWaterData_;
-  }
-
-  data.rawValue = reading->rawValue;
-  data.state    = (reading->rawValue <= Config::WATER_LEVEL_RESISTIVE_LOW_THRESHOLD)
-                    ? ReservoirState::LOW
-                    : ReservoirState::OK;
-  data.valid    = true;
-
-  cachedResistiveWaterData_ = data;
-  lastResistiveWaterReadMs_ = now;
-  return cachedResistiveWaterData_;
-}
-
 auto SensorManager::readSoilMoisture() const -> SoilMoistureData
 {
-  auto data       = SoilMoistureData{};
-  data.rawValue   = readADC(Config::SOIL_MOISTURE_ADC);
+  auto data = SoilMoistureData{};
+  gpio_put(Config::SOIL_MOISTURE_POWER_UP_PIN, true);
+  sleep_ms(Config::SOIL_MOISTURE_POWER_UP_MS);
+  data.rawValue = readADC(Config::SOIL_MOISTURE_ADC_CHANNEL);
+  gpio_put(Config::SOIL_MOISTURE_POWER_UP_PIN, false);
   data.percentage = 100.0F - mapToPercentage(data.rawValue, soilWetValue_, soilDryValue_);
   data.percentage = std::clamp(data.percentage, 0.0F, 100.0F);
   data.valid      = true;
@@ -236,11 +182,6 @@ auto SensorManager::readSoilMoisture() const -> SoilMoistureData
 auto SensorManager::readWaterLevel() const -> WaterLevelData
 {
   auto data = WaterLevelData{};
-
-  if (not Config::WATER_LEVEL_I2C_ENABLED)
-  {
-    return data;
-  }
 
   if (not waterSensor_)
   {

@@ -7,7 +7,6 @@
 
 #include "BME280.h"
 #include "Config.h"
-#include "ResistiveWaterLevelSensor.h"
 #include "Types.h"
 #include "WaterLevelSensor.h"
 
@@ -29,7 +28,6 @@ public:
   [[nodiscard]] auto readBME280() -> BME280Data;
   [[nodiscard]] auto readSoilMoisture() const -> SoilMoistureData;
   [[nodiscard]] auto readWaterLevel() const -> WaterLevelData;
-  [[nodiscard]] auto readResistiveWaterLevel() const -> ResistiveWaterData;
 
   void calibrateSoilMoisture(uint16_t dryValue, uint16_t wetValue) noexcept;
 
@@ -43,14 +41,11 @@ public:
   }
 
 private:
-  bool                                       initialized_{false};
-  std::unique_ptr<BME280>                    bme280_;
-  std::unique_ptr<WaterLevelSensor>          waterSensor_;
-  std::unique_ptr<ResistiveWaterLevelSensor> resistiveWaterSensor_;
-  mutable bool                               waterSensorMissingLogged_{false};
-  mutable bool                               waterSensorReadFailedLogged_{false};
-  mutable ResistiveWaterData                 cachedResistiveWaterData_{};
-  mutable uint32_t                           lastResistiveWaterReadMs_{0};
+  bool                              initialized_{false};
+  std::unique_ptr<BME280>           bme280_;
+  std::unique_ptr<WaterLevelSensor> waterSensor_;
+  mutable bool                      waterSensorMissingLogged_{false};
+  mutable bool                      waterSensorReadFailedLogged_{false};
 
   uint16_t soilDryValue_{Config::SOIL_DRY_VALUE};
   uint16_t soilWetValue_{Config::SOIL_WET_VALUE};

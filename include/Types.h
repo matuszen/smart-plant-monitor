@@ -2,6 +2,7 @@
 
 #include <concepts>
 #include <cstdint>
+#include <type_traits>
 
 template <typename T>
 concept Numeric = std::is_arithmetic_v<T>;
@@ -83,44 +84,18 @@ struct WaterLevelData
   }
 };
 
-enum class ReservoirState : uint8_t
-{
-  UNKNOWN = 0,
-  OK      = 1,
-  LOW     = 2
-};
-
-struct ResistiveWaterData
-{
-  ReservoirState state{ReservoirState::UNKNOWN};
-  uint16_t       rawValue{0};
-  bool           valid{false};
-
-  [[nodiscard]] constexpr auto isValid() const noexcept -> bool
-  {
-    return valid;
-  }
-  [[nodiscard]] constexpr auto isLow() const noexcept -> bool
-  {
-    return valid and state == ReservoirState::LOW;
-  }
-  [[nodiscard]] constexpr auto isOk() const noexcept -> bool
-  {
-    return valid and state == ReservoirState::OK;
-  }
-};
-
 struct SensorData
 {
-  BME280Data         environment;
-  SoilMoistureData   soil;
-  WaterLevelData     water;
-  ResistiveWaterData waterResistive;
-  uint32_t           timestamp{0};
+  BME280Data       environment;
+  SoilMoistureData soil;
+  WaterLevelData   water;
+  bool             waterLevelAvailable{false};
+  uint32_t         timestamp{0};
 
   [[nodiscard]] constexpr auto allValid() const noexcept -> bool
   {
-    return environment.isValid() and soil.isValid() and waterResistive.isValid();
+    return environment.isValid() and soil.isValid() and
+           (not waterLevelAvailable or water.isValid());
   }
 };
 

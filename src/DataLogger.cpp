@@ -43,19 +43,21 @@ void DataLogger::logData(const SensorData& data, const bool wasWatering)
     logs_.erase(logs_.begin());
   }
 
-  const bool  hasReservoirData = data.waterResistive.isValid();
-  const char* reservoirStatus  = "N/A";
-  if (hasReservoirData)
+  const bool  waterAvailable = data.waterLevelAvailable;
+  const bool  hasWaterData   = waterAvailable and data.water.isValid();
+  const char* waterStatus    = waterAvailable ? "ERR" : "N/A";
+  if (hasWaterData)
   {
-    reservoirStatus = data.waterResistive.isLow() ? "LOW" : "OK";
+    waterStatus = data.water.isLow() ? "LOW" : "OK";
   }
-  const uint16_t reservoirRaw = hasReservoirData ? data.waterResistive.rawValue : 0U;
+  const uint16_t waterRaw = hasWaterData ? data.water.rawValue : 0U;
+  const float    waterPct = hasWaterData ? data.water.percentage : 0.0F;
 
-  printf("[DataLogger] Logged entry #%u (Soil: %.1f%%, Temp: %.1f°C, Reservoir: %s", entry.id,
-         data.soil.percentage, data.environment.temperature, reservoirStatus);
-  if (hasReservoirData)
+  printf("[DataLogger] Logged entry #%u (Soil: %.1f%%, Temp: %.1f°C, Water: %s", entry.id,
+         data.soil.percentage, data.environment.temperature, waterStatus);
+  if (hasWaterData)
   {
-    printf(" raw=%u", reservoirRaw);
+    printf(" %.0f%% raw=%u", waterPct, waterRaw);
   }
   printf(")\n");
 }

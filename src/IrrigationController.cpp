@@ -137,13 +137,12 @@ auto IrrigationController::shouldStartWatering() const -> bool
     return false;
   }
 
-  const auto reservoir = sensorManager_->readResistiveWaterLevel();
-  if (not reservoir.valid)
+  const auto waterLevel = sensorManager_->readWaterLevel();
+  if (not waterLevel.isValid())
   {
     return false;
   }
-
-  if (reservoir.isLow())
+  if (waterLevel.isLow())
   {
     return false;
   }

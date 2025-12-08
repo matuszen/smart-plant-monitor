@@ -17,7 +17,7 @@ namespace
 
 void dumpBuffer(const char* label, std::span<const uint8_t> data)
 {
-  if (not Config::ENABLE_SERIAL_DEBUG)
+  if constexpr (not Config::ENABLE_SERIAL_DEBUG)
   {
     return;
   }
@@ -116,18 +116,18 @@ auto WaterLevelSensor::read() -> std::optional<Reading>
   std::copy_n(buffer.begin(), LOW_SECTIONS, low.begin());
   std::copy_n(std::next(buffer.begin(), LOW_SECTIONS), HIGH_SECTIONS, high.begin());
 
-  const auto sensorMap = buildSensorMap(low, high);
-  const auto sections  = countContinuousSections(sensorMap);
-  const auto activePads =
-    static_cast<uint8_t>(std::count_if(buffer.begin(), buffer.end(), [](const uint8_t value) -> bool
-                                       { return value > Config::WATER_LEVEL_TOUCH_THRESHOLD; }));
+  const auto sensorMap  = buildSensorMap(low, high);
+  const auto sections   = countContinuousSections(sensorMap);
+  const auto activePads = static_cast<uint8_t>(
+    std::ranges::count_if(buffer.begin(), buffer.end(), [](const uint8_t value) -> bool
+                          { return value > Config::WATER_LEVEL_TOUCH_THRESHOLD; }));
 
   auto reading       = Reading{};
   reading.sections   = sections;
   reading.depthMm    = static_cast<uint16_t>(sections * Config::WATER_LEVEL_SECTION_HEIGHT_MM);
   reading.percentage = std::min(100.0F, (sections / static_cast<float>(TOTAL_SECTIONS)) * 100.0F);
 
-  if (Config::ENABLE_SERIAL_DEBUG)
+  if constexpr (Config::ENABLE_SERIAL_DEBUG)
   {
     const float levelCm  = (activePads * Config::WATER_LEVEL_SECTION_HEIGHT_MM) / 10.0F;
     const float levelPct = (activePads / static_cast<float>(TOTAL_SECTIONS)) * 100.0F;
@@ -150,7 +150,7 @@ auto WaterLevelSensor::readBlock(const uint8_t address, uint8_t* buffer,
     return false;
   }
 
-  if (Config::ENABLE_SERIAL_DEBUG)
+  if constexpr (Config::ENABLE_SERIAL_DEBUG)
   {
     printf("[WaterLevelSensor] readBlock addr=0x%02X len=%zu\n", address, length);
   }
@@ -253,7 +253,7 @@ void WaterLevelSensor::warmupIfStuck(std::array<uint8_t, TOTAL_SECTIONS>& buffer
     return;
   }
 
-  if (Config::ENABLE_SERIAL_DEBUG)
+  if constexpr (Config::ENABLE_SERIAL_DEBUG)
   {
     printf("[WaterLevelSensor] INFO: Raw data stuck at 0, warmup attempts left=%u\n",
            warmupAttemptsRemaining_);

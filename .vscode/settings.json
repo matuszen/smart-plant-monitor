@@ -35,19 +35,12 @@
     },
     "raspberry-pi-pico.cmakeAutoConfigure": true,
     "raspberry-pi-pico.useCmakeTools": false,
-    "raspberry-pi-pico.cmakePath": "${HOME}/.pico-sdk/cmake/v3.31.5/bin/cmake",
-    "raspberry-pi-pico.ninjaPath": "${HOME}/.pico-sdk/ninja/v1.12.1/ninja",
-    "clangd.arguments": [
-        "--compile-commands-dir=${workspaceFolder}",
-        "--query-driver=${HOME}/.pico-sdk/toolchain/14_2_Rel1/bin/arm-none-eabi-*",
-        "--background-index",
-        "--clang-tidy",
-        "--completion-style=detailed",
-        "--header-insertion=iwyu",
-        "--pch-storage=memory"
-    ],
-    "clangd.path": "clangd",
     "C_Cpp.intelliSenseEngine": "disabled",
     "C_Cpp.autocomplete": "disabled",
-    "C_Cpp.errorSquiggles": "disabled"
+    "C_Cpp.errorSquiggles": "disabled",
+    "clangd.arguments": [
+        "--query-driver=/usr/include/c++/13/*",
+        "--background-index",
+        "--clang-tidy"
+    ]
 }

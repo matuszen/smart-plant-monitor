@@ -12,7 +12,7 @@ if (EXISTS ${picoVscode})
     include(${picoVscode})
 endif()
 # ====================================================================================
-set(PICO_BOARD pico CACHE STRING "Board type")
+set(PICO_BOARD pico2_w CACHE STRING "Board type")
 
 cmake_minimum_required(VERSION 3.13...3.27)
 
@@ -38,7 +38,6 @@ set(SOURCES
     src/IrrigationController.cpp
     src/DataLogger.cpp
     src/WaterLevelSensor.cpp
-    src/ResistiveWaterLevelSensor.cpp
 )
 
 add_executable(smart_plant_monitor ${SOURCES})
