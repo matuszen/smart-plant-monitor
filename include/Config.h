@@ -13,7 +13,7 @@ inline constexpr std::string_view SYSTEM_VERSION    = "1.0";
 inline constexpr std::string_view SYSTEM_NAME       = "Smart Plant Monitor";
 inline constexpr const char*      DEVICE_IDENTIFIER = "smart-plant-monitor";
 
-inline constexpr bool        ENABLE_HOME_ASSISTANT    = true;
+inline constexpr bool        ENABLE_HOME_ASSISTANT    = false;
 inline constexpr const char* WIFI_SSID                = "NetworkName";
 inline constexpr const char* WIFI_PASSWORD            = "PASSWD1234";
 inline constexpr const char* MQTT_BROKER_HOST         = "192.168.1.10";
@@ -27,10 +27,16 @@ inline constexpr uint32_t    HA_PUBLISH_INTERVAL_MS   = 15'000;
 inline constexpr uint32_t    HA_RECONNECT_INTERVAL_MS = 5'000;
 
 inline constexpr uint8_t  BME280_I2C_INSTANCE = 0;
-inline constexpr uint8_t  BME280_SDA_PIN      = 0;
-inline constexpr uint8_t  BME280_SCL_PIN      = 1;
+inline constexpr uint8_t  BME280_SDA_PIN      = 4;
+inline constexpr uint8_t  BME280_SCL_PIN      = 5;
 inline constexpr uint32_t BME280_I2C_BAUDRATE = 400'000;
 inline constexpr uint8_t  BME280_I2C_ADDRESS  = 0x76;
+
+inline constexpr uint8_t  LIGHT_SENSOR_I2C_INSTANCE = BME280_I2C_INSTANCE;
+inline constexpr uint8_t  LIGHT_SENSOR_SDA_PIN      = BME280_SDA_PIN;
+inline constexpr uint8_t  LIGHT_SENSOR_SCL_PIN      = BME280_SCL_PIN;
+inline constexpr uint32_t LIGHT_SENSOR_I2C_BAUDRATE = BME280_I2C_BAUDRATE;
+inline constexpr uint8_t  LIGHT_SENSOR_I2C_ADDRESS  = 0x23;
 
 inline constexpr uint8_t  SOIL_MOISTURE_POWER_UP_PIN  = 22;
 inline constexpr uint32_t SOIL_MOISTURE_POWER_UP_MS   = 500;
@@ -41,9 +47,9 @@ inline constexpr uint16_t SOIL_WET_VALUE              = 1'500;
 inline constexpr float    SOIL_MOISTURE_DRY_THRESHOLD = 30.0F;
 inline constexpr float    SOIL_MOISTURE_WET_THRESHOLD = 70.0F;
 
-inline constexpr uint8_t  WATER_LEVEL_I2C_INSTANCE      = 0;
-inline constexpr uint8_t  WATER_LEVEL_SDA_PIN           = 0;
-inline constexpr uint8_t  WATER_LEVEL_SCL_PIN           = 1;
+inline constexpr uint8_t  WATER_LEVEL_I2C_INSTANCE      = 1;
+inline constexpr uint8_t  WATER_LEVEL_SDA_PIN           = 2;
+inline constexpr uint8_t  WATER_LEVEL_SCL_PIN           = 3;
 inline constexpr uint32_t WATER_LEVEL_I2C_BAUDRATE      = 100'000;
 inline constexpr uint8_t  WATER_LEVEL_LOW_ADDR          = 0x77;
 inline constexpr uint8_t  WATER_LEVEL_HIGH_ADDR         = 0x78;

@@ -149,16 +149,18 @@ void HomeAssistantClient::publishSensorState(const uint32_t nowMs, const SensorD
   }
 
   std::array<char, 256> payload{};
+  const bool            lightAvailable = data.lightLevelAvailable and data.light.isValid();
   const bool            waterAvailable = data.waterLevelAvailable and data.water.isValid();
+  const float           lightLux       = lightAvailable ? data.light.lux : 0.0F;
   const float           waterPct       = waterAvailable ? data.water.percentage : 0.0F;
 
-  const int payloadLen =
-    std::snprintf(payload.data(), payload.size(),
-                  "{\"temperature\":%.2f,\"humidity\":%.2f,\"pressure\":%.2f,"
-                  "\"soil_moisture\":%.2f,\"water_level\":%.2f,"
-                  "\"water_level_available\":%s,\"watering\":%s}",
-                  data.environment.temperature, data.environment.humidity, data.environment.pressure,
-                  data.soil.percentage, waterPct, waterAvailable ? "true" : "false", watering ? "true" : "false");
+  const int payloadLen = std::snprintf(
+    payload.data(), payload.size(),
+    "{\"temperature\":%.2f,\"humidity\":%.2f,\"pressure\":%.2f,"
+    "\"soil_moisture\":%.2f,\"light_lux\":%.2f,\"light_available\":%s,"
+    "\"water_level\":%.2f,\"water_level_available\":%s,\"watering\":%s}",
+    data.environment.temperature, data.environment.humidity, data.environment.pressure, data.soil.percentage, lightLux,
+    lightAvailable ? "true" : "false", waterPct, waterAvailable ? "true" : "false", watering ? "true" : "false");
 
   if (payloadLen < 0 or static_cast<size_t>(payloadLen) >= payload.size())
   {
@@ -239,6 +241,7 @@ void HomeAssistantClient::publishDiscovery()
   publishSensorDiscovery("sensor", "humidity", "Plant Humidity", "{{ value_json.humidity }}", "%", "humidity");
   publishSensorDiscovery("sensor", "pressure", "Air Pressure", "{{ value_json.pressure }}", "hPa", "pressure");
   publishSensorDiscovery("sensor", "soil", "Soil Moisture", "{{ value_json.soil_moisture }}", "%", "moisture");
+  publishSensorDiscovery("sensor", "light", "Ambient Light", "{{ value_json.light_lux }}", "lx", "illuminance");
   publishSensorDiscovery("sensor", "water", "Water Level", "{{ value_json.water_level }}", "%");
   publishSensorDiscovery("binary_sensor", "watering", "Irrigation Running", "{{ value_json.watering }}", nullptr,
                          "running");

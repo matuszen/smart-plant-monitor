@@ -12,6 +12,7 @@
 
 #include "BME280.h"
 #include "Config.h"
+#include "LightSensor.h"
 #include "SensorManager.h"
 #include "Types.h"
 #include "WaterLevelSensor.h"
@@ -25,10 +26,8 @@ namespace
   {
     case 0:
       return i2c0;
-#if defined(i2c1)
     case 1:
       return i2c1;
-#endif
     default:
       return nullptr;
   }
@@ -52,72 +51,89 @@ auto SensorManager::init() -> bool
   gpio_put(Config::SOIL_MOISTURE_POWER_UP_PIN, false);
 
   auto* bmeI2C   = resolveI2CInstance(Config::BME280_I2C_INSTANCE);
+  auto* lightI2C = resolveI2CInstance(Config::LIGHT_SENSOR_I2C_INSTANCE);
   auto* waterI2C = resolveI2CInstance(Config::WATER_LEVEL_I2C_INSTANCE);
 
   const bool waterInstanceInvalid  = waterI2C == nullptr;
   const bool bme280InstanceInvalid = bmeI2C == nullptr;
+  const bool lightInstanceInvalid  = lightI2C == nullptr;
 
-  if (bme280InstanceInvalid or waterInstanceInvalid)
+  [[unlikely]]
+  if (bme280InstanceInvalid or waterInstanceInvalid or lightInstanceInvalid)
   {
-    printf("[SensorManager] ERROR: Unsupported I2C instance (BME=%u, Water=%u)\n", Config::BME280_I2C_INSTANCE,
-           Config::WATER_LEVEL_I2C_INSTANCE);
+    printf("[SensorManager] ERROR: Unsupported I2C instance (BME=%u, Light=%u, Water=%u)\n",
+           Config::BME280_I2C_INSTANCE, Config::LIGHT_SENSOR_I2C_INSTANCE, Config::WATER_LEVEL_I2C_INSTANCE);
     return false;
   }
 
-  const bool     sharedBus = (bmeI2C == waterI2C);
-  const uint32_t waterBaud = Config::WATER_LEVEL_I2C_BAUDRATE;
-  const uint32_t bmeBaudRate =
-    sharedBus ? std::min(Config::BME280_I2C_BAUDRATE, waterBaud) : Config::BME280_I2C_BAUDRATE;
+  const bool bmeLightShared = Config::BME280_I2C_INSTANCE == Config::LIGHT_SENSOR_I2C_INSTANCE;
 
-  printf("[SensorManager] I2C config -> BME inst=%u, Water inst=%u, shared=%s, BME baud=%lu, "
-         "Water baud=%lu\n",
-         Config::BME280_I2C_INSTANCE, Config::WATER_LEVEL_I2C_INSTANCE, sharedBus ? "yes" : "no",
-         static_cast<unsigned long>(bmeBaudRate), static_cast<unsigned long>(waterBaud));
+  printf("[SensorManager] I2C config -> BME inst=%u, Light inst=%u, Water inst=%u, BME/Light shared=%s, "
+         "BME baud=%lu, Light baud=%lu, Water baud=%lu\n",
+         Config::BME280_I2C_INSTANCE, Config::LIGHT_SENSOR_I2C_INSTANCE, Config::WATER_LEVEL_I2C_INSTANCE,
+         bmeLightShared ? "yes" : "no", static_cast<unsigned long>(Config::BME280_I2C_BAUDRATE),
+         static_cast<unsigned long>(Config::LIGHT_SENSOR_I2C_BAUDRATE),
+         static_cast<unsigned long>(Config::WATER_LEVEL_I2C_BAUDRATE));
 
-  i2c_init(bmeI2C, bmeBaudRate);
+  i2c_init(bmeI2C, Config::BME280_I2C_BAUDRATE);
   gpio_set_function(Config::BME280_SDA_PIN, GPIO_FUNC_I2C);
   gpio_set_function(Config::BME280_SCL_PIN, GPIO_FUNC_I2C);
   gpio_pull_up(Config::BME280_SDA_PIN);
   gpio_pull_up(Config::BME280_SCL_PIN);
 
-  if (not sharedBus)
+  if (not bmeLightShared)
   {
-    i2c_init(waterI2C, Config::WATER_LEVEL_I2C_BAUDRATE);
-    gpio_set_function(Config::WATER_LEVEL_SDA_PIN, GPIO_FUNC_I2C);
-    gpio_set_function(Config::WATER_LEVEL_SCL_PIN, GPIO_FUNC_I2C);
-    gpio_pull_up(Config::WATER_LEVEL_SDA_PIN);
-    gpio_pull_up(Config::WATER_LEVEL_SCL_PIN);
+    i2c_init(lightI2C, Config::LIGHT_SENSOR_I2C_BAUDRATE);
+    gpio_set_function(Config::LIGHT_SENSOR_SDA_PIN, GPIO_FUNC_I2C);
+    gpio_set_function(Config::LIGHT_SENSOR_SCL_PIN, GPIO_FUNC_I2C);
+    gpio_pull_up(Config::LIGHT_SENSOR_SDA_PIN);
+    gpio_pull_up(Config::LIGHT_SENSOR_SCL_PIN);
   }
 
-  if constexpr (Config::ENABLE_SERIAL_DEBUG)
-  {
-    printf("[SensorManager] Scanning I2C bus for devices...\n");
-    scanI2CBus(bmeI2C, Config::BME280_I2C_INSTANCE);
-    if (not sharedBus)
-    {
-      scanI2CBus(waterI2C, Config::WATER_LEVEL_I2C_INSTANCE);
-    }
-  }
+  i2c_init(waterI2C, Config::WATER_LEVEL_I2C_BAUDRATE);
+  gpio_set_function(Config::WATER_LEVEL_SDA_PIN, GPIO_FUNC_I2C);
+  gpio_set_function(Config::WATER_LEVEL_SCL_PIN, GPIO_FUNC_I2C);
+  gpio_pull_up(Config::WATER_LEVEL_SDA_PIN);
+  gpio_pull_up(Config::WATER_LEVEL_SCL_PIN);
 
-  bme280_.reset();
+  // if constexpr (Config::ENABLE_SERIAL_DEBUG)
+  // {
+  //   printf("[SensorManager] Scanning I2C bus for devices...\n");
+  //   scanI2CBus(bmeI2C, Config::BME280_I2C_INSTANCE);
+  //   if (not sharedBus)
+  //   {
+  //     scanI2CBus(waterI2C, Config::WATER_LEVEL_I2C_INSTANCE);
+  //   }
+  // }
 
-  printf("[SensorManager] Probing BME280 at 0x%02X on I2C%u...\n", Config::BME280_I2C_ADDRESS,
-         Config::BME280_I2C_INSTANCE);
+  // bme280_.reset();
 
-  auto sensor = std::make_unique<BME280>(bmeI2C, Config::BME280_I2C_ADDRESS);
-  if (sensor->init())
-  {
-    bme280_ = std::move(sensor);
-    printf("[SensorManager] BME280 initialized successfully (addr=0x%02X)\n", Config::BME280_I2C_ADDRESS);
-  }
-  else
-  {
-    printf("[SensorManager] BME280 init failed at address 0x%02X\n", Config::BME280_I2C_ADDRESS);
-  }
+  // printf("[SensorManager] Probing BME280 at 0x%02X on I2C%u...\n", Config::BME280_I2C_ADDRESS,
+  //        Config::BME280_I2C_INSTANCE);
 
-  if (not bme280_)
+  // auto sensor = std::make_unique<BME280>(bmeI2C, Config::BME280_I2C_ADDRESS);
+  // if (sensor->init())
+  // {
+  //   bme280_ = std::move(sensor);
+  //   printf("[SensorManager] BME280 initialized successfully (addr=0x%02X)\n", Config::BME280_I2C_ADDRESS);
+  // }
+  // else
+  // {
+  //   printf("[SensorManager] BME280 init failed at address 0x%02X\n", Config::BME280_I2C_ADDRESS);
+  // }
+
+  // if (not bme280_)
+  // {
+  //   printf("[SensorManager] WARNING: BME280 not found or failed to initialize\n");
+  // }
+
+  printf("[SensorManager] Probing BH1750 at 0x%02X on I2C%u...\n", Config::LIGHT_SENSOR_I2C_ADDRESS,
+         Config::LIGHT_SENSOR_I2C_INSTANCE);
+  lightSensor_ = std::make_unique<LightSensor>(lightI2C, Config::LIGHT_SENSOR_I2C_ADDRESS);
+  if (lightSensor_ and not lightSensor_->init())
   {
-    printf("[SensorManager] WARNING: BME280 not found or failed to initialize\n");
+    printf("[SensorManager] WARNING: BH1750 not detected\n");
+    lightSensor_.reset();
   }
 
   waterSensor_ = std::make_unique<WaterLevelSensor>(waterI2C);
@@ -134,12 +150,15 @@ auto SensorManager::init() -> bool
 
 auto SensorManager::readAllSensors() -> SensorData
 {
-  auto data                = SensorData{};
-  data.timestamp           = to_ms_since_boot(get_absolute_time());
-  data.waterLevelAvailable = waterSensor_ != nullptr;
-  data.environment         = readBME280();
-  data.soil                = readSoilMoisture();
-  data.water               = readWaterLevel();
+  auto data = SensorData{
+    .environment         = readBME280(),
+    .light               = readLightLevel(),
+    .soil                = readSoilMoisture(),
+    .water               = readWaterLevel(),
+    .lightLevelAvailable = lightSensor_ != nullptr,
+    .waterLevelAvailable = waterSensor_ != nullptr,
+    .timestamp           = to_ms_since_boot(get_absolute_time()),
+  };
   return data;
 }
 
@@ -161,6 +180,45 @@ auto SensorManager::readBME280() -> BME280Data
     data.valid       = true;
   }
 
+  return data;
+}
+
+auto SensorManager::readLightLevel() const -> LightLevelData
+{
+  auto data = LightLevelData{};
+
+  if (not lightSensor_)
+  {
+    if (not lightSensorMissingLogged_)
+    {
+      printf("[SensorManager] Light sensor unavailable (init failed)\n");
+      lightSensorMissingLogged_ = true;
+    }
+    return data;
+  }
+
+  const auto reading = lightSensor_->read();
+  if (not reading)
+  {
+    lightSensorMissingLogged_ = false;
+    if (not lightSensorReadFailedLogged_)
+    {
+      printf("[SensorManager] Light sensor read failed\n");
+      lightSensorReadFailedLogged_ = true;
+    }
+    return data;
+  }
+
+  if (lightSensorMissingLogged_ or lightSensorReadFailedLogged_)
+  {
+    printf("[SensorManager] Light sensor recovered (lux=%.1f)\n", reading->lux);
+  }
+  lightSensorMissingLogged_    = false;
+  lightSensorReadFailedLogged_ = false;
+
+  data.rawValue = reading->raw;
+  data.lux      = reading->lux;
+  data.valid    = true;
   return data;
 }
 

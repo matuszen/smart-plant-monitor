@@ -7,6 +7,7 @@
 
 #include "BME280.h"
 #include "Config.h"
+#include "LightSensor.h"
 #include "Types.h"
 #include "WaterLevelSensor.h"
 
@@ -26,6 +27,7 @@ public:
   [[nodiscard]] auto readAllSensors() -> SensorData;
 
   [[nodiscard]] auto readBME280() -> BME280Data;
+  [[nodiscard]] auto readLightLevel() const -> LightLevelData;
   [[nodiscard]] auto readSoilMoisture() const -> SoilMoistureData;
   [[nodiscard]] auto readWaterLevel() const -> WaterLevelData;
 
@@ -43,9 +45,12 @@ public:
 private:
   bool                              initialized_{false};
   std::unique_ptr<BME280>           bme280_;
+  std::unique_ptr<LightSensor>      lightSensor_;
   std::unique_ptr<WaterLevelSensor> waterSensor_;
   mutable bool                      waterSensorMissingLogged_{false};
   mutable bool                      waterSensorReadFailedLogged_{false};
+  mutable bool                      lightSensorMissingLogged_{false};
+  mutable bool                      lightSensorReadFailedLogged_{false};
 
   uint16_t soilDryValue_{Config::SOIL_DRY_VALUE};
   uint16_t soilWetValue_{Config::SOIL_WET_VALUE};

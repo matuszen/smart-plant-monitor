@@ -44,6 +44,8 @@ void DataLogger::logData(const SensorData& data, const bool wasWatering)
     logs_.erase(logs_.begin());
   }
 
+  const bool  lightAvailable = data.lightLevelAvailable;
+  const bool  hasLightData   = lightAvailable and data.light.isValid();
   const bool  waterAvailable = data.waterLevelAvailable;
   const bool  hasWaterData   = waterAvailable and data.water.isValid();
   const char* waterStatus    = waterAvailable ? "ERR" : "N/A";
@@ -54,8 +56,15 @@ void DataLogger::logData(const SensorData& data, const bool wasWatering)
   const uint16_t waterRaw = hasWaterData ? data.water.rawValue : 0U;
   const float    waterPct = hasWaterData ? data.water.percentage : 0.0F;
 
-  printf("[DataLogger] Logged entry #%u (Soil: %.1f%%, Temp: %.1f°C, Water: %s", entry.id, data.soil.percentage,
-         data.environment.temperature, waterStatus);
+  printf("[DataLogger] Logged entry #%u (Soil: %.1f%%, Temp: %.1f°C", entry.id, data.soil.percentage,
+         data.environment.temperature);
+
+  if (hasLightData)
+  {
+    printf(", Light: %.1f lux", data.light.lux);
+  }
+
+  printf(", Water: %s", waterStatus);
   if (hasWaterData)
   {
     printf(" %.0f%% raw=%u", waterPct, waterRaw);

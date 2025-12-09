@@ -38,6 +38,7 @@ set(SOURCES
     src/IrrigationController.cpp
     src/DataLogger.cpp
     src/WaterLevelSensor.cpp
+    src/LightSensor.cpp
     src/HomeAssistantClient.cpp
 )
 

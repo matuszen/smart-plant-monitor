@@ -60,6 +60,18 @@ struct SoilMoistureData
   }
 };
 
+struct LightLevelData
+{
+  uint16_t rawValue{0};
+  float    lux{0.0F};
+  bool     valid{false};
+
+  [[nodiscard]] constexpr auto isValid() const noexcept -> bool
+  {
+    return valid;
+  }
+};
+
 struct WaterLevelData
 {
   float    percentage{0.0F};
@@ -87,14 +99,17 @@ struct WaterLevelData
 struct SensorData
 {
   BME280Data       environment;
+  LightLevelData   light;
   SoilMoistureData soil;
   WaterLevelData   water;
+  bool             lightLevelAvailable{false};
   bool             waterLevelAvailable{false};
   uint32_t         timestamp{0};
 
   [[nodiscard]] constexpr auto allValid() const noexcept -> bool
   {
-    return environment.isValid() and soil.isValid() and (not waterLevelAvailable or water.isValid());
+    return environment.isValid() and soil.isValid() and (not lightLevelAvailable or light.isValid()) and
+           (not waterLevelAvailable or water.isValid());
   }
 };
 

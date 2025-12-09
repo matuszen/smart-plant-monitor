@@ -66,14 +66,19 @@ void initSystem()
     printf("ERROR: DataLogger initialization failed!\n");
   }
 
-  if (not haClient.init())
+  if constexpr (Config::ENABLE_HOME_ASSISTANT)
   {
-    printf("WARNING: Home Assistant integration failed to initialize (Wi-Fi/MQTT)\n");
+    if (not haClient.init())
+    {
+      printf("WARNING: Home Assistant integration failed to initialize (Wi-Fi/MQTT)\n");
+    }
   }
 
   printf("\n=================================================\n");
   printf("System Configuration:\n");
   printf("- BME280 (I2C0): GP%d (SDA), GP%d (SCL)\n", Config::BME280_SDA_PIN, Config::BME280_SCL_PIN);
+  printf("- Light (BH1750) on I2C%u: GP%d (SDA), GP%d (SCL) addr 0x%02X\n", Config::LIGHT_SENSOR_I2C_INSTANCE,
+         Config::LIGHT_SENSOR_SDA_PIN, Config::LIGHT_SENSOR_SCL_PIN, Config::LIGHT_SENSOR_I2C_ADDRESS);
   printf("- Soil Moisture: GP%d (ADC%d)\n", Config::SOIL_MOISTURE_ADC_PIN, Config::SOIL_MOISTURE_ADC_CHANNEL);
   printf("- Water Level: Grove sensor on I2C%u (addr 0x%02X/0x%02X)\n", Config::WATER_LEVEL_I2C_INSTANCE,
          Config::WATER_LEVEL_LOW_ADDR, Config::WATER_LEVEL_HIGH_ADDR);
@@ -89,7 +94,11 @@ void mainLoop()
 {
   const auto now = to_ms_since_boot(get_absolute_time());
 
-  haClient.loop(now);
+  if constexpr (Config::ENABLE_HOME_ASSISTANT)
+  {
+    haClient.loop(now);
+  }
+
   irrigationController.update();
 
   if (now - lastLEDToggleTime >= Config::STATUS_LED_BLINK_MS)
@@ -114,6 +123,23 @@ void mainLoop()
     else
     {
       printf("BME280 not available\n");
+    }
+
+    printf("  Light: ");
+    if (data.lightLevelAvailable)
+    {
+      if (data.light.isValid())
+      {
+        printf("%.1f lux\n", data.light.lux);
+      }
+      else
+      {
+        printf("Unavailable\n");
+      }
+    }
+    else
+    {
+      printf("Disabled\n");
     }
 
     printf("  Soil Moisture: ");
@@ -156,7 +182,11 @@ void mainLoop()
     }
 
     dataLogger.logData(data, irrigationController.isWatering());
-    haClient.publishSensorState(now, data, irrigationController.isWatering());
+
+    if constexpr (Config::ENABLE_HOME_ASSISTANT)
+    {
+      haClient.publishSensorState(now, data, irrigationController.isWatering());
+    }
 
     lastSensorReadTime = now;
     printf("\n");
