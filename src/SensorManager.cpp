@@ -96,36 +96,32 @@ auto SensorManager::init() -> bool
   gpio_pull_up(Config::WATER_LEVEL_SDA_PIN);
   gpio_pull_up(Config::WATER_LEVEL_SCL_PIN);
 
-  // if constexpr (Config::ENABLE_SERIAL_DEBUG)
-  // {
-  //   printf("[SensorManager] Scanning I2C bus for devices...\n");
-  //   scanI2CBus(bmeI2C, Config::BME280_I2C_INSTANCE);
-  //   if (not sharedBus)
-  //   {
-  //     scanI2CBus(waterI2C, Config::WATER_LEVEL_I2C_INSTANCE);
-  //   }
-  // }
+  if constexpr (Config::ENABLE_SERIAL_DEBUG)
+  {
+    printf("[SensorManager] Scanning I2C bus for devices...\n");
+    scanI2CBus(bmeI2C, Config::BME280_I2C_INSTANCE);
+  }
 
-  // bme280_.reset();
+  bme280_.reset();
 
-  // printf("[SensorManager] Probing BME280 at 0x%02X on I2C%u...\n", Config::BME280_I2C_ADDRESS,
-  //        Config::BME280_I2C_INSTANCE);
+  printf("[SensorManager] Probing BME280 at 0x%02X on I2C%u...\n", Config::BME280_I2C_ADDRESS,
+         Config::BME280_I2C_INSTANCE);
 
-  // auto sensor = std::make_unique<BME280>(bmeI2C, Config::BME280_I2C_ADDRESS);
-  // if (sensor->init())
-  // {
-  //   bme280_ = std::move(sensor);
-  //   printf("[SensorManager] BME280 initialized successfully (addr=0x%02X)\n", Config::BME280_I2C_ADDRESS);
-  // }
-  // else
-  // {
-  //   printf("[SensorManager] BME280 init failed at address 0x%02X\n", Config::BME280_I2C_ADDRESS);
-  // }
+  auto sensor = std::make_unique<BME280>(bmeI2C, Config::BME280_I2C_ADDRESS);
+  if (sensor->init())
+  {
+    bme280_ = std::move(sensor);
+    printf("[SensorManager] BME280 initialized successfully (addr=0x%02X)\n", Config::BME280_I2C_ADDRESS);
+  }
+  else
+  {
+    printf("[SensorManager] BME280 init failed at address 0x%02X\n", Config::BME280_I2C_ADDRESS);
+  }
 
-  // if (not bme280_)
-  // {
-  //   printf("[SensorManager] WARNING: BME280 not found or failed to initialize\n");
-  // }
+  if (not bme280_)
+  {
+    printf("[SensorManager] WARNING: BME280 not found or failed to initialize\n");
+  }
 
   printf("[SensorManager] Probing BH1750 at 0x%02X on I2C%u...\n", Config::LIGHT_SENSOR_I2C_ADDRESS,
          Config::LIGHT_SENSOR_I2C_INSTANCE);
