@@ -12,8 +12,9 @@ public:
   DataLogger()  = default;
   ~DataLogger() = default;
 
-  DataLogger(const DataLogger&)                        = delete;
-  auto operator=(const DataLogger&) -> DataLogger&     = delete;
+  DataLogger(const DataLogger&)                    = delete;
+  auto operator=(const DataLogger&) -> DataLogger& = delete;
+
   DataLogger(DataLogger&&) noexcept                    = delete;
   auto operator=(DataLogger&&) noexcept -> DataLogger& = delete;
 

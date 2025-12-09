@@ -52,8 +52,8 @@ auto BME280::init() -> bool
   {
     return false;
   }
-  if (not setSampling(SensorMode::NORMAL, SensorSampling::X2, SensorSampling::X16,
-                      SensorSampling::X1, SensorFilter::OFF, StandbyDuration::MS_0_5))
+  if (not setSampling(SensorMode::NORMAL, SensorSampling::X2, SensorSampling::X16, SensorSampling::X1,
+                      SensorFilter::OFF, StandbyDuration::MS_0_5))
   {
     return false;
   }
@@ -78,10 +78,10 @@ auto BME280::read() -> std::optional<BME280::Measurement>
 
   const auto& data = rawData.value();
 
-  const auto adcP = (static_cast<int32_t>(data[0]) << 12) | (static_cast<int32_t>(data[1]) << 4) |
-                    (static_cast<int32_t>(data[2]) >> 4);
-  const auto adcT = (static_cast<int32_t>(data[3]) << 12) | (static_cast<int32_t>(data[4]) << 4) |
-                    (static_cast<int32_t>(data[5]) >> 4);
+  const auto adcP =
+    (static_cast<int32_t>(data[0]) << 12) | (static_cast<int32_t>(data[1]) << 4) | (static_cast<int32_t>(data[2]) >> 4);
+  const auto adcT =
+    (static_cast<int32_t>(data[3]) << 12) | (static_cast<int32_t>(data[4]) << 4) | (static_cast<int32_t>(data[5]) >> 4);
   const auto adcH = (static_cast<int32_t>(data[6]) << 8) | static_cast<int32_t>(data[7]);
 
   auto measurement        = Measurement{};
@@ -141,9 +141,9 @@ auto BME280::readRawData() -> std::optional<std::array<uint8_t, 8>>
   return data;
 }
 
-auto BME280::setSampling(const SensorMode mode, const SensorSampling tempSampling,
-                         const SensorSampling pressSampling, const SensorSampling humSampling,
-                         const SensorFilter filter, const StandbyDuration duration) -> bool
+auto BME280::setSampling(const SensorMode mode, const SensorSampling tempSampling, const SensorSampling pressSampling,
+                         const SensorSampling humSampling, const SensorFilter filter,
+                         const StandbyDuration duration) -> bool
 {
   meas_.mode      = static_cast<uint8_t>(mode);
   meas_.osrsT     = static_cast<uint8_t>(tempSampling);
@@ -179,14 +179,13 @@ auto BME280::isReadingCalibration() -> bool
 
 auto BME280::compensateTemperature(const int32_t adcT) -> float
 {
-  const auto var1 = (((adcT >> 3) - (static_cast<int32_t>(calib_.dig_T1) << 1)) *
-                     static_cast<int32_t>(calib_.dig_T2)) >>
-                    11;
-  const auto var2 = (((((adcT >> 4) - static_cast<int32_t>(calib_.dig_T1)) *
-                       ((adcT >> 4) - static_cast<int32_t>(calib_.dig_T1))) >>
-                      12) *
-                     static_cast<int32_t>(calib_.dig_T3)) >>
-                    14;
+  const auto var1 =
+    (((adcT >> 3) - (static_cast<int32_t>(calib_.dig_T1) << 1)) * static_cast<int32_t>(calib_.dig_T2)) >> 11;
+  const auto var2 =
+    (((((adcT >> 4) - static_cast<int32_t>(calib_.dig_T1)) * ((adcT >> 4) - static_cast<int32_t>(calib_.dig_T1))) >>
+      12) *
+     static_cast<int32_t>(calib_.dig_T3)) >>
+    14;
   t_fine_         = var1 + var2 + t_fine_adjust_;
   const auto temp = (t_fine_ * 5 + 128) >> 8;
   return static_cast<float>(temp) / 100.0F;
@@ -198,8 +197,8 @@ auto BME280::compensatePressure(const int32_t adcP) const -> float
   auto var2 = var1 * var1 * static_cast<int64_t>(calib_.dig_P6);
   var2      = var2 + ((var1 * static_cast<int64_t>(calib_.dig_P5)) << 17);
   var2      = var2 + (static_cast<int64_t>(calib_.dig_P4) << 35);
-  var1      = ((var1 * var1 * static_cast<int64_t>(calib_.dig_P3)) >> 8) +
-         ((var1 * static_cast<int64_t>(calib_.dig_P2)) << 12);
+  var1 =
+    ((var1 * var1 * static_cast<int64_t>(calib_.dig_P3)) >> 8) + ((var1 * static_cast<int64_t>(calib_.dig_P2)) << 12);
   var1 = (((static_cast<int64_t>(1) << 47) + var1) * static_cast<int64_t>(calib_.dig_P1)) >> 33;
 
   if (var1 == 0)
@@ -219,8 +218,7 @@ auto BME280::compensatePressure(const int32_t adcP) const -> float
 auto BME280::compensateHumidity(const int32_t adcH) const -> float
 {
   auto vX1 = t_fine_ - 76'800;
-  vX1      = (((((adcH << 14) - (static_cast<int32_t>(calib_.dig_H4) << 20) -
-            (static_cast<int32_t>(calib_.dig_H5) * vX1)) +
+  vX1 = (((((adcH << 14) - (static_cast<int32_t>(calib_.dig_H4) << 20) - (static_cast<int32_t>(calib_.dig_H5) * vX1)) +
            16'384) >>
           15) *
          (((((((vX1 * static_cast<int32_t>(calib_.dig_H6)) >> 10) *
@@ -240,8 +238,7 @@ auto BME280::compensateHumidity(const int32_t adcH) const -> float
 auto BME280::writeRegister(const uint8_t reg, const uint8_t value) -> bool
 {
   auto data = std::array<uint8_t, 2>{reg, value};
-  return i2c_write_blocking(i2c_, address_, data.data(), data.size(), false) ==
-         static_cast<int>(data.size());
+  return i2c_write_blocking(i2c_, address_, data.data(), data.size(), false) == static_cast<int>(data.size());
 }
 
 auto BME280::readRegister(const uint8_t reg) -> std::optional<uint8_t>

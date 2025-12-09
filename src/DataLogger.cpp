@@ -54,8 +54,8 @@ void DataLogger::logData(const SensorData& data, const bool wasWatering)
   const uint16_t waterRaw = hasWaterData ? data.water.rawValue : 0U;
   const float    waterPct = hasWaterData ? data.water.percentage : 0.0F;
 
-  printf("[DataLogger] Logged entry #%u (Soil: %.1f%%, Temp: %.1f°C, Water: %s", entry.id,
-         data.soil.percentage, data.environment.temperature, waterStatus);
+  printf("[DataLogger] Logged entry #%u (Soil: %.1f%%, Temp: %.1f°C, Water: %s", entry.id, data.soil.percentage,
+         data.environment.temperature, waterStatus);
   if (hasWaterData)
   {
     printf(" %.0f%% raw=%u", waterPct, waterRaw);
@@ -66,8 +66,7 @@ void DataLogger::logData(const SensorData& data, const bool wasWatering)
 auto DataLogger::getUnuploadedLogs() const -> std::vector<DataLogEntry>
 {
   auto result = std::vector<DataLogEntry>{};
-  std::ranges::copy_if(logs_, std::back_inserter(result),
-                       [](const DataLogEntry& e) -> bool { return not e.uploaded; });
+  std::ranges::copy_if(logs_, std::back_inserter(result), [](const DataLogEntry& e) -> bool { return not e.uploaded; });
   return result;
 }
 

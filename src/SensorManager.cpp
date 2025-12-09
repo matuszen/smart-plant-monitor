@@ -59,8 +59,8 @@ auto SensorManager::init() -> bool
 
   if (bme280InstanceInvalid or waterInstanceInvalid)
   {
-    printf("[SensorManager] ERROR: Unsupported I2C instance (BME=%u, Water=%u)\n",
-           Config::BME280_I2C_INSTANCE, Config::WATER_LEVEL_I2C_INSTANCE);
+    printf("[SensorManager] ERROR: Unsupported I2C instance (BME=%u, Water=%u)\n", Config::BME280_I2C_INSTANCE,
+           Config::WATER_LEVEL_I2C_INSTANCE);
     return false;
   }
 
@@ -108,8 +108,7 @@ auto SensorManager::init() -> bool
   if (sensor->init())
   {
     bme280_ = std::move(sensor);
-    printf("[SensorManager] BME280 initialized successfully (addr=0x%02X)\n",
-           Config::BME280_I2C_ADDRESS);
+    printf("[SensorManager] BME280 initialized successfully (addr=0x%02X)\n", Config::BME280_I2C_ADDRESS);
   }
   else
   {
@@ -207,8 +206,8 @@ auto SensorManager::readWaterLevel() const -> WaterLevelData
 
   if (waterSensorMissingLogged_ or waterSensorReadFailedLogged_)
   {
-    printf("[SensorManager] Water level sensor recovered (depth=%umm, sections=%u)\n",
-           reading->depthMm, reading->sections);
+    printf("[SensorManager] Water level sensor recovered (depth=%umm, sections=%u)\n", reading->depthMm,
+           reading->sections);
   }
   waterSensorMissingLogged_    = false;
   waterSensorReadFailedLogged_ = false;
@@ -283,6 +282,5 @@ constexpr void SensorManager::scanI2CBus(i2c_inst_t* const bus, const uint8_t in
     printf("  (no I2C devices detected on I2C%u)\n", instanceId);
   }
 
-  printf("[SensorManager] I2C%u scan complete (%u device%s found)\n", instanceId, detected,
-         (detected == 1) ? "" : "s");
+  printf("[SensorManager] I2C%u scan complete (%u device%s found)\n", instanceId, detected, (detected == 1) ? "" : "s");
 }

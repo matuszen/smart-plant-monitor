@@ -46,7 +46,7 @@ SpacesInCStyleCastParentheses: false
 SpacesInParentheses: false
 SpacesInSquareBrackets: false
 
-ColumnLimit: 100
+ColumnLimit: 120
 MaxEmptyLinesToKeep: 1
 KeepEmptyLinesAtTheStartOfBlocks: false
 BreakBeforeBinaryOperators: None
@@ -54,7 +54,8 @@ BreakBeforeTernaryOperators: true
 BreakConstructorInitializers: BeforeColon
 BreakInheritanceList: BeforeColon
 BreakStringLiterals: true
-
+AlignArrayOfStructures: Right
+BracedInitializerIndentWidth : 2
 AlignAfterOpenBracket: Align
 AlignConsecutiveAssignments:
   Enabled: true

@@ -94,8 +94,7 @@ struct SensorData
 
   [[nodiscard]] constexpr auto allValid() const noexcept -> bool
   {
-    return environment.isValid() and soil.isValid() and
-           (not waterLevelAvailable or water.isValid());
+    return environment.isValid() and soil.isValid() and (not waterLevelAvailable or water.isValid());
   }
 };
 

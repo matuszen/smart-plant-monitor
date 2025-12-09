@@ -39,8 +39,7 @@ private:
   static constexpr uint8_t LOW_SECTIONS{8};
   static constexpr uint8_t HIGH_SECTIONS{12};
   static constexpr uint8_t TOTAL_SECTIONS{LOW_SECTIONS + HIGH_SECTIONS};
-  static_assert(TOTAL_SECTIONS == Config::WATER_LEVEL_TOTAL_SECTIONS,
-                "Water level section count mismatch");
+  static_assert(TOTAL_SECTIONS == Config::WATER_LEVEL_TOTAL_SECTIONS, "Water level section count mismatch");
   static_assert(TOTAL_SECTIONS <= 32, "Water level algorithm assumes up to 32 contiguous segments");
 
   i2c_inst_t* i2c_;
@@ -52,14 +51,12 @@ private:
   bool        startupPrimed_{false};
   uint8_t     warmupAttemptsRemaining_{Config::WATER_LEVEL_WAKE_RETRIES};
 
-  [[nodiscard]] auto readBlock(uint8_t address, uint8_t* buffer, size_t length) -> bool;
-  [[nodiscard]] auto readCombined(uint8_t                              address,
-                                  std::array<uint8_t, TOTAL_SECTIONS>& buffer) -> bool;
-  [[nodiscard]] auto readSplit(std::array<uint8_t, TOTAL_SECTIONS>& buffer) -> bool;
-  [[nodiscard]] auto fetchSensorBuffer(std::array<uint8_t, TOTAL_SECTIONS>& buffer) -> bool;
-  void               warmupIfStuck(std::array<uint8_t, TOTAL_SECTIONS>& buffer);
-  [[nodiscard]] static auto
-                            buildSensorMap(const std::array<uint8_t, LOW_SECTIONS>&  low,
+  [[nodiscard]] auto        readBlock(uint8_t address, uint8_t* buffer, size_t length) -> bool;
+  [[nodiscard]] auto        readCombined(uint8_t address, std::array<uint8_t, TOTAL_SECTIONS>& buffer) -> bool;
+  [[nodiscard]] auto        readSplit(std::array<uint8_t, TOTAL_SECTIONS>& buffer) -> bool;
+  [[nodiscard]] auto        fetchSensorBuffer(std::array<uint8_t, TOTAL_SECTIONS>& buffer) -> bool;
+  void                      warmupIfStuck(std::array<uint8_t, TOTAL_SECTIONS>& buffer);
+  [[nodiscard]] static auto buildSensorMap(const std::array<uint8_t, LOW_SECTIONS>&  low,
                                            const std::array<uint8_t, HIGH_SECTIONS>& high) -> uint32_t;
   [[nodiscard]] static auto countContinuousSections(uint32_t sensorMap) -> uint8_t;
 };

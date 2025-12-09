@@ -54,8 +54,7 @@ inline constexpr uint8_t  WATER_LEVEL_READ_DELAY_MS     = 10;
 inline constexpr uint8_t  WATER_LEVEL_WAKE_RETRIES      = 8;
 inline constexpr uint16_t WATER_LEVEL_WAKE_DELAY_MS     = 50;
 inline constexpr uint8_t  WATER_LEVEL_WAKE_MIN_SIGNAL   = 5;
-inline constexpr uint16_t WATER_LEVEL_MAX_DEPTH_MM =
-  WATER_LEVEL_SECTION_HEIGHT_MM * WATER_LEVEL_TOTAL_SECTIONS;
+inline constexpr uint16_t WATER_LEVEL_MAX_DEPTH_MM      = WATER_LEVEL_SECTION_HEIGHT_MM * WATER_LEVEL_TOTAL_SECTIONS;
 
 inline constexpr uint8_t RELAY_PIN         = 15;
 inline constexpr bool    RELAY_ACTIVE_HIGH = true;

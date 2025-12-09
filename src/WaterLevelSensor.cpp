@@ -32,14 +32,13 @@ void dumpBuffer(const char* label, std::span<const uint8_t> data)
 
 auto hasSignal(std::span<const uint8_t> data) -> bool
 {
-  return std::ranges::any_of(data, [](const uint8_t value) -> bool
-                             { return value >= Config::WATER_LEVEL_WAKE_MIN_SIGNAL; });
+  return std::ranges::any_of(data,
+                             [](const uint8_t value) -> bool { return value >= Config::WATER_LEVEL_WAKE_MIN_SIGNAL; });
 }
 
 }  // namespace
 
-WaterLevelSensor::WaterLevelSensor(i2c_inst_t* i2c, const uint8_t lowAddress,
-                                   const uint8_t highAddress)
+WaterLevelSensor::WaterLevelSensor(i2c_inst_t* i2c, const uint8_t lowAddress, const uint8_t highAddress)
   : i2c_(i2c), lowAddress_(lowAddress), highAddress_(highAddress), activeAddress_(lowAddress)
 {
 }
@@ -57,8 +56,7 @@ auto WaterLevelSensor::init() -> bool
     return false;
   }
 
-  printf("[WaterLevelSensor] Probing sensor (low=0x%02X, high=0x%02X)\n", lowAddress_,
-         highAddress_);
+  printf("[WaterLevelSensor] Probing sensor (low=0x%02X, high=0x%02X)\n", lowAddress_, highAddress_);
 
   std::array<uint8_t, TOTAL_SECTIONS> buffer{};
 
@@ -81,8 +79,8 @@ auto WaterLevelSensor::init() -> bool
   }
   else
   {
-    printf("[WaterLevelSensor] ERROR: Unable to communicate with sensor (addr 0x%02X/0x%02X)\n",
-           lowAddress_, highAddress_);
+    printf("[WaterLevelSensor] ERROR: Unable to communicate with sensor (addr 0x%02X/0x%02X)\n", lowAddress_,
+           highAddress_);
     return false;
   }
 
@@ -116,11 +114,11 @@ auto WaterLevelSensor::read() -> std::optional<Reading>
   std::copy_n(buffer.begin(), LOW_SECTIONS, low.begin());
   std::copy_n(std::next(buffer.begin(), LOW_SECTIONS), HIGH_SECTIONS, high.begin());
 
-  const auto sensorMap  = buildSensorMap(low, high);
-  const auto sections   = countContinuousSections(sensorMap);
-  const auto activePads = static_cast<uint8_t>(
-    std::ranges::count_if(buffer.begin(), buffer.end(), [](const uint8_t value) -> bool
-                          { return value > Config::WATER_LEVEL_TOUCH_THRESHOLD; }));
+  const auto sensorMap = buildSensorMap(low, high);
+  const auto sections  = countContinuousSections(sensorMap);
+  const auto activePads =
+    static_cast<uint8_t>(std::ranges::count_if(buffer.begin(), buffer.end(), [](const uint8_t value) -> bool
+                                               { return value > Config::WATER_LEVEL_TOUCH_THRESHOLD; }));
 
   auto reading       = Reading{};
   reading.sections   = sections;
@@ -131,22 +129,19 @@ auto WaterLevelSensor::read() -> std::optional<Reading>
   {
     const float levelCm  = (activePads * Config::WATER_LEVEL_SECTION_HEIGHT_MM) / 10.0F;
     const float levelPct = (activePads / static_cast<float>(TOTAL_SECTIONS)) * 100.0F;
-    printf(
-      "[WaterLevelSensor] Map=0x%05lX, contiguous=%u, active=%u, depth=%umm, %.1f cm (%.0f%%)\n",
-      static_cast<unsigned long>(sensorMap), sections, activePads, reading.depthMm, levelCm,
-      levelPct);
+    printf("[WaterLevelSensor] Map=0x%05lX, contiguous=%u, active=%u, depth=%umm, %.1f cm (%.0f%%)\n",
+           static_cast<unsigned long>(sensorMap), sections, activePads, reading.depthMm, levelCm, levelPct);
   }
 
   return reading;
 }
 
-auto WaterLevelSensor::readBlock(const uint8_t address, uint8_t* buffer,
-                                 const size_t length) -> bool
+auto WaterLevelSensor::readBlock(const uint8_t address, uint8_t* buffer, const size_t length) -> bool
 {
   if ((i2c_ == nullptr) or (buffer == nullptr) or (length == 0))
   {
-    printf("[WaterLevelSensor] readBlock guard tripped (i2c=%p, buffer=%p, len=%zu)\n",
-           static_cast<void*>(i2c_), static_cast<void*>(buffer), length);
+    printf("[WaterLevelSensor] readBlock guard tripped (i2c=%p, buffer=%p, len=%zu)\n", static_cast<void*>(i2c_),
+           static_cast<void*>(buffer), length);
     return false;
   }
 
@@ -158,8 +153,7 @@ auto WaterLevelSensor::readBlock(const uint8_t address, uint8_t* buffer,
   const auto result = i2c_read_blocking(i2c_, address, buffer, length, false);
   if (result != static_cast<int>(length))
   {
-    printf("[WaterLevelSensor] readBlock failed (addr=0x%02X, expected=%zu, got=%d)\n", address,
-           length, result);
+    printf("[WaterLevelSensor] readBlock failed (addr=0x%02X, expected=%zu, got=%d)\n", address, length, result);
     return false;
   }
 
@@ -170,8 +164,7 @@ auto WaterLevelSensor::readBlock(const uint8_t address, uint8_t* buffer,
   return true;
 }
 
-auto WaterLevelSensor::readCombined(const uint8_t                        address,
-                                    std::array<uint8_t, TOTAL_SECTIONS>& buffer) -> bool
+auto WaterLevelSensor::readCombined(const uint8_t address, std::array<uint8_t, TOTAL_SECTIONS>& buffer) -> bool
 {
   if (readBlock(address, buffer.data(), buffer.size()))
   {
@@ -187,8 +180,7 @@ auto WaterLevelSensor::readSplit(std::array<uint8_t, TOTAL_SECTIONS>& buffer) ->
   std::array<uint8_t, LOW_SECTIONS>  low{};
   std::array<uint8_t, HIGH_SECTIONS> high{};
 
-  if (not readBlock(lowAddress_, low.data(), low.size()) or
-      not readBlock(highAddress_, high.data(), high.size()))
+  if (not readBlock(lowAddress_, low.data(), low.size()) or not readBlock(highAddress_, high.data(), high.size()))
   {
     return false;
   }
@@ -225,13 +217,12 @@ auto WaterLevelSensor::fetchSensorBuffer(std::array<uint8_t, TOTAL_SECTIONS>& bu
     return true;
   }
 
-  if ((lowAddress_ != highAddress_) && (activeAddress_ != lowAddress_) && tryCombined(lowAddress_))
+  if ((lowAddress_ != highAddress_) and (activeAddress_ != lowAddress_) and tryCombined(lowAddress_))
   {
     return true;
   }
 
-  if ((lowAddress_ != highAddress_) && (activeAddress_ != highAddress_) &&
-      tryCombined(highAddress_))
+  if ((lowAddress_ != highAddress_) and (activeAddress_ != highAddress_) and tryCombined(highAddress_))
   {
     return true;
   }
@@ -255,8 +246,7 @@ void WaterLevelSensor::warmupIfStuck(std::array<uint8_t, TOTAL_SECTIONS>& buffer
 
   if constexpr (Config::ENABLE_SERIAL_DEBUG)
   {
-    printf("[WaterLevelSensor] INFO: Raw data stuck at 0, warmup attempts left=%u\n",
-           warmupAttemptsRemaining_);
+    printf("[WaterLevelSensor] INFO: Raw data stuck at 0, warmup attempts left=%u\n", warmupAttemptsRemaining_);
   }
 
   auto tryCombined = [&](const uint8_t address) -> bool

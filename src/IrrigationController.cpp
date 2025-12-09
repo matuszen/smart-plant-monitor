@@ -10,8 +10,7 @@
 #include "SensorManager.h"
 #include "Types.h"
 
-IrrigationController::IrrigationController(SensorManager* sensorManager)
-  : sensorManager_(sensorManager)
+IrrigationController::IrrigationController(SensorManager* sensorManager) : sensorManager_(sensorManager)
 {
 }
 
@@ -77,8 +76,7 @@ void IrrigationController::startWatering(const uint32_t durationMs)
     return;
   }
 
-  wateringDuration_ =
-    std::clamp(durationMs, Config::MIN_WATERING_DURATION_MS, Config::MAX_WATERING_DURATION_MS);
+  wateringDuration_ = std::clamp(durationMs, Config::MIN_WATERING_DURATION_MS, Config::MAX_WATERING_DURATION_MS);
 
   printf("[IrrigationController] Starting watering for %u ms\n", wateringDuration_);
 

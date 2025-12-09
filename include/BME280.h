@@ -103,8 +103,7 @@ private:
 
     [[nodiscard]] auto value() const -> uint8_t
     {
-      return static_cast<uint8_t>(((standby & 0x07U) << 5U) | ((filter & 0x07U) << 2U) |
-                                  (spi3w & 0x01U));
+      return static_cast<uint8_t>(((standby & 0x07U) << 5U) | ((filter & 0x07U) << 2U) | (spi3w & 0x01U));
     }
   };
 
@@ -116,8 +115,7 @@ private:
 
     [[nodiscard]] auto value() const -> uint8_t
     {
-      return static_cast<uint8_t>(((osrsT & 0x07U) << 5U) | ((osrsP & 0x07U) << 2U) |
-                                  (mode & 0x03U));
+      return static_cast<uint8_t>(((osrsT & 0x07U) << 5U) | ((osrsP & 0x07U) << 2U) | (mode & 0x03U));
     }
   };
 
@@ -143,9 +141,8 @@ private:
 
   [[nodiscard]] auto readCalibrationData() -> bool;
   [[nodiscard]] auto readRawData() -> std::optional<std::array<uint8_t, 8>>;
-  [[nodiscard]] auto setSampling(SensorMode mode, SensorSampling tempSampling,
-                                 SensorSampling pressSampling, SensorSampling humSampling,
-                                 SensorFilter filter, StandbyDuration duration) -> bool;
+  [[nodiscard]] auto setSampling(SensorMode mode, SensorSampling tempSampling, SensorSampling pressSampling,
+                                 SensorSampling humSampling, SensorFilter filter, StandbyDuration duration) -> bool;
 
   [[nodiscard]] auto isReadingCalibration() -> bool;
   [[nodiscard]] auto compensateTemperature(int32_t adcT) -> float;
