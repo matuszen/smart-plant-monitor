@@ -86,7 +86,7 @@ auto BME280::read() -> std::optional<BME280::Measurement>
 
   auto measurement        = Measurement{};
   measurement.temperature = compensateTemperature(adcT);
-  measurement.pressure    = compensatePressure(adcP) / 100.0F;  // convert Pa -> hPa
+  measurement.pressure    = compensatePressure(adcP) / 100.0F;
   measurement.humidity    = compensateHumidity(adcH);
 
   return measurement;

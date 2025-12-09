@@ -254,7 +254,7 @@ auto SensorManager::mapToPercentage(const uint16_t value, const uint16_t minVal,
   return (static_cast<float>(value - minVal) / static_cast<float>(maxVal - minVal)) * 100.0F;
 }
 
-void SensorManager::scanI2CBus(i2c_inst_t* const bus, const uint8_t instanceId)
+constexpr void SensorManager::scanI2CBus(i2c_inst_t* const bus, const uint8_t instanceId)
 {
   if (bus == nullptr)
   {

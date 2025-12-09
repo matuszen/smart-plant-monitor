@@ -7,6 +7,7 @@
 
 #include "Config.h"
 #include "DataLogger.h"
+#include "HomeAssistantClient.h"
 #include "IrrigationController.h"
 #include "SensorManager.h"
 #include "Types.h"
@@ -17,6 +18,7 @@ namespace
 SensorManager        sensorManager;
 IrrigationController irrigationController(&sensorManager);
 DataLogger           dataLogger;
+HomeAssistantClient  haClient(&sensorManager, &irrigationController);
 
 uint32_t lastSensorReadTime = 0;
 uint32_t lastLEDToggleTime  = 0;
@@ -64,6 +66,11 @@ void initSystem()
     printf("ERROR: DataLogger initialization failed!\n");
   }
 
+  if (not haClient.init())
+  {
+    printf("WARNING: Home Assistant integration failed to initialize (Wi-Fi/MQTT)\n");
+  }
+
   printf("\n=================================================\n");
   printf("System Configuration:\n");
   printf("- BME280 (I2C0): GP%d (SDA), GP%d (SCL)\n", Config::BME280_SDA_PIN,
@@ -85,6 +92,7 @@ void mainLoop()
 {
   const auto now = to_ms_since_boot(get_absolute_time());
 
+  haClient.loop(now);
   irrigationController.update();
 
   if (now - lastLEDToggleTime >= Config::STATUS_LED_BLINK_MS)
@@ -151,6 +159,7 @@ void mainLoop()
     }
 
     dataLogger.logData(data, irrigationController.isWatering());
+    haClient.publishSensorState(now, data, irrigationController.isWatering());
 
     lastSensorReadTime = now;
     printf("\n");

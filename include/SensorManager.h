@@ -53,5 +53,5 @@ private:
   [[nodiscard]] static auto readADC(uint8_t channel) -> uint16_t;
   [[nodiscard]] static auto mapToPercentage(uint16_t value, uint16_t minVal,
                                             uint16_t maxVal) noexcept -> float;
-  static void               scanI2CBus(i2c_inst_t* bus, uint8_t instanceId);
+  constexpr static void     scanI2CBus(i2c_inst_t* bus, uint8_t instanceId);
 };

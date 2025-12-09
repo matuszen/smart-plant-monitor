@@ -9,8 +9,22 @@
 namespace Config
 {
 
-inline constexpr std::string_view SYSTEM_VERSION = "1.0";
-inline constexpr std::string_view SYSTEM_NAME    = "Smart Plant Monitor";
+inline constexpr std::string_view SYSTEM_VERSION    = "1.0";
+inline constexpr std::string_view SYSTEM_NAME       = "Smart Plant Monitor";
+inline constexpr const char*      DEVICE_IDENTIFIER = "smart-plant-monitor";
+
+inline constexpr bool        ENABLE_HOME_ASSISTANT    = true;
+inline constexpr const char* WIFI_SSID                = "NetworkName";
+inline constexpr const char* WIFI_PASSWORD            = "PASSWD1234";
+inline constexpr const char* MQTT_BROKER_HOST         = "192.168.1.10";
+inline constexpr uint16_t    MQTT_BROKER_PORT         = 1883;
+inline constexpr const char* MQTT_CLIENT_ID           = "smart-plant-monitor";
+inline constexpr const char* MQTT_USERNAME            = nullptr;
+inline constexpr const char* MQTT_PASSWORD            = nullptr;
+inline constexpr const char* HA_DISCOVERY_PREFIX      = "homeassistant";
+inline constexpr const char* HA_BASE_TOPIC            = "smartplant";
+inline constexpr uint32_t    HA_PUBLISH_INTERVAL_MS   = 15'000;
+inline constexpr uint32_t    HA_RECONNECT_INTERVAL_MS = 5'000;
 
 inline constexpr uint8_t  BME280_I2C_INSTANCE = 0;
 inline constexpr uint8_t  BME280_SDA_PIN      = 0;

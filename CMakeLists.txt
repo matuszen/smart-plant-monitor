@@ -38,12 +38,15 @@ set(SOURCES
     src/IrrigationController.cpp
     src/DataLogger.cpp
     src/WaterLevelSensor.cpp
+    src/HomeAssistantClient.cpp
 )
 
 add_executable(smart_plant_monitor ${SOURCES})
 
 target_link_libraries(smart_plant_monitor
     pico_stdlib
+    pico_cyw43_arch_lwip_poll
+    pico_lwip_mqtt
     hardware_adc
     hardware_i2c
     hardware_gpio

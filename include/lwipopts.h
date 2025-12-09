@@ -6,6 +6,11 @@
 #define LWIP_SOCKET 0
 #define LWIP_NETCONN 0
 
+// MQTT / application protocols
+#define LWIP_MQTT 1
+#define MQTT_OUTPUT_RINGBUF_SIZE 1024
+#define MQTT_REQ_MAX_IN_FLIGHT 4
+
 // DHCP options
 #define LWIP_DHCP 1
 #define LWIP_DHCP_CHECK_LINK_UP 1

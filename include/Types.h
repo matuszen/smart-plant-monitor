@@ -63,7 +63,7 @@ struct SoilMoistureData
 struct WaterLevelData
 {
   float    percentage{0.0F};
-  uint16_t rawValue{0};  // Represents estimated depth in millimeters.
+  uint16_t rawValue{0};
   bool     valid{false};
 
   [[nodiscard]] constexpr auto isValid() const noexcept -> bool
