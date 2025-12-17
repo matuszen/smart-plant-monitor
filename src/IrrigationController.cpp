@@ -31,8 +31,8 @@ auto IrrigationController::init() -> bool
 
   printf("[IrrigationController] Initializing...\n");
 
-  gpio_init(Config::RELAY_PIN);
-  gpio_set_dir(Config::RELAY_PIN, true);
+  gpio_init(Config::PUMP_CONTROL_PIN);
+  gpio_set_dir(Config::PUMP_CONTROL_PIN, GPIO_OUT);
   activateRelay(false);
 
   initialized_ = true;
@@ -78,6 +78,7 @@ void IrrigationController::startWatering(const uint32_t durationMs)
 
   wateringDuration_ = std::clamp(durationMs, Config::MIN_WATERING_DURATION_MS, Config::MAX_WATERING_DURATION_MS);
 
+  printf("Turning water pump ON...\n");
   printf("[IrrigationController] Starting watering for %u ms\n", wateringDuration_);
 
   isWatering_        = true;
@@ -92,6 +93,7 @@ void IrrigationController::stopWatering()
     return;
   }
 
+  printf("Turning water pump OFF...\n");
   printf("[IrrigationController] Stopping watering\n");
 
   isWatering_       = false;
@@ -119,7 +121,7 @@ void IrrigationController::setMode(const IrrigationMode mode)
 void IrrigationController::activateRelay(const bool enable)
 {
   const auto state = Config::RELAY_ACTIVE_HIGH ? enable : not enable;
-  gpio_put(Config::RELAY_PIN, state);
+  gpio_put(Config::PUMP_CONTROL_PIN, state);
 }
 
 auto IrrigationController::shouldStartWatering() const -> bool

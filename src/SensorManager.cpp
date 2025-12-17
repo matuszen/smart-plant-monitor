@@ -1,7 +1,9 @@
-#include <algorithm>
 #include <cstdint>
 #include <cstdio>
 #include <memory>
+
+#include <FreeRTOS.h>
+#include <semphr.h>
 
 #include <hardware/adc.h>
 #include <hardware/gpio.h>
@@ -10,8 +12,10 @@
 
 #include "Config.h"
 #include "EnvironmentalSensor.h"
+#include "HallSensor.h"
 #include "LightSensor.h"
 #include "SensorManager.h"
+#include "SoilMoistureSensor.h"
 #include "Types.h"
 #include "WaterLevelSensor.h"
 
@@ -31,6 +35,33 @@ namespace
   }
 }
 
+class MutexGuard
+{
+public:
+  explicit MutexGuard(SemaphoreHandle_t handle) : handle_(handle)
+  {
+    if (handle_ != nullptr)
+    {
+      xSemaphoreTakeRecursive(handle_, portMAX_DELAY);
+    }
+  }
+  ~MutexGuard()
+  {
+    if (handle_ != nullptr)
+    {
+      xSemaphoreGiveRecursive(handle_);
+    }
+  }
+
+  MutexGuard(const MutexGuard&)                    = delete;
+  auto operator=(const MutexGuard&) -> MutexGuard& = delete;
+  MutexGuard(MutexGuard&&)                         = delete;
+  auto operator=(MutexGuard&&) -> MutexGuard&      = delete;
+
+private:
+  SemaphoreHandle_t handle_{};
+};
+
 }  // namespace
 
 auto SensorManager::init() -> bool
@@ -42,11 +73,14 @@ auto SensorManager::init() -> bool
 
   printf("[SensorManager] Initializing...\n");
 
+  sensorMutex_ = xSemaphoreCreateRecursiveMutex();
+  if (sensorMutex_ == nullptr)
+  {
+    printf("[SensorManager] ERROR: Failed to create sensor mutex\n");
+    return false;
+  }
+
   adc_init();
-  adc_gpio_init(Config::SOIL_MOISTURE_ADC_PIN);
-  gpio_init(Config::SOIL_MOISTURE_POWER_UP_PIN);
-  gpio_set_dir(Config::SOIL_MOISTURE_POWER_UP_PIN, GPIO_OUT);
-  gpio_put(Config::SOIL_MOISTURE_POWER_UP_PIN, false);
 
   auto* sharedI2C = resolveI2CInstance(Config::BME280_I2C_INSTANCE);
   auto* waterI2C  = resolveI2CInstance(Config::WATER_LEVEL_I2C_INSTANCE);
@@ -79,12 +113,19 @@ auto SensorManager::init() -> bool
     printf("[SensorManager] WARNING: BME280 not detected\n");
     environmentalSensor_.reset();
   }
-
   lightSensor_ = std::make_unique<LightSensor>(sharedI2C, Config::LIGHT_SENSOR_I2C_ADDRESS);
   if (not lightSensor_->init())
   {
     printf("[SensorManager] WARNING: BH1750 not detected\n");
     lightSensor_.reset();
+  }
+
+  soilSensor_ = std::make_unique<SoilMoistureSensor>(Config::SOIL_MOISTURE_ADC_PIN, Config::SOIL_MOISTURE_ADC_CHANNEL,
+                                                     Config::SOIL_MOISTURE_POWER_UP_PIN);
+  if (not soilSensor_->init())
+  {
+    printf("[SensorManager] WARNING: Soil moisture sensor init failed\n");
+    soilSensor_.reset();
   }
 
   waterSensor_ =
@@ -93,6 +134,13 @@ auto SensorManager::init() -> bool
   {
     printf("[SensorManager] WARNING: Water level sensor not detected\n");
     waterSensor_.reset();
+  }
+
+  hallSensor_ = std::make_unique<HallSensor>(Config::HALL_POWER_PIN, Config::HALL_SIGNAL_PIN);
+  if (not hallSensor_->init())
+  {
+    printf("[SensorManager] WARNING: Hall sensor not detected\n");
+    hallSensor_.reset();
   }
 
   initialized_ = true;
@@ -107,6 +155,7 @@ auto SensorManager::readAllSensors() -> SensorData
     .light       = readLightLevel(),
     .soil        = readSoilMoisture(),
     .water       = readWaterLevel(),
+    .hall        = readHallSensor(),
     .timestamp   = to_ms_since_boot(get_absolute_time()),
   };
   return data;
@@ -114,6 +163,8 @@ auto SensorManager::readAllSensors() -> SensorData
 
 auto SensorManager::readBME280() -> EnvironmentData
 {
+  const MutexGuard guard(sensorMutex_);
+
   if (not environmentalSensor_)
   {
     return EnvironmentData{};
@@ -130,6 +181,8 @@ auto SensorManager::readBME280() -> EnvironmentData
 
 auto SensorManager::readLightLevel() const -> LightLevelData
 {
+  const MutexGuard guard(sensorMutex_);
+
   if (not lightSensor_)
   {
     return LightLevelData{};
@@ -146,20 +199,26 @@ auto SensorManager::readLightLevel() const -> LightLevelData
 
 auto SensorManager::readSoilMoisture() const -> SoilMoistureData
 {
-  SoilMoistureData data{};
+  const MutexGuard guard(sensorMutex_);
 
-  gpio_put(Config::SOIL_MOISTURE_POWER_UP_PIN, true);
-  sleep_ms(Config::SOIL_MOISTURE_POWER_UP_MS);
-  data.rawValue = readADC(Config::SOIL_MOISTURE_ADC_CHANNEL);
-  gpio_put(Config::SOIL_MOISTURE_POWER_UP_PIN, false);
-  data.percentage = 100.0F - mapToPercentage(data.rawValue, soilWetValue_, soilDryValue_);
-  data.percentage = std::clamp(data.percentage, 0.0F, 100.0F);
-  data.valid      = true;
-  return data;
+  if (not soilSensor_)
+  {
+    return SoilMoistureData{};
+  }
+
+  const auto measurement = soilSensor_->read();
+  if (not measurement)
+  {
+    return SoilMoistureData{};
+  }
+
+  return measurement.value();
 }
 
 auto SensorManager::readWaterLevel() const -> WaterLevelData
 {
+  const MutexGuard guard(sensorMutex_);
+
   if (not waterSensor_)
   {
     return WaterLevelData{};
@@ -174,33 +233,28 @@ auto SensorManager::readWaterLevel() const -> WaterLevelData
   return measurement.value();
 }
 
+auto SensorManager::readHallSensor() const -> HallSensorData
+{
+  const MutexGuard guard(sensorMutex_);
+
+  if (not hallSensor_)
+  {
+    return HallSensorData{};
+  }
+
+  const auto measurement = hallSensor_->read();
+  if (not measurement)
+  {
+    return HallSensorData{};
+  }
+
+  return measurement.value();
+}
+
 void SensorManager::calibrateSoilMoisture(const uint16_t dryValue, const uint16_t wetValue) noexcept
 {
-  soilDryValue_ = dryValue;
-  soilWetValue_ = wetValue;
-  printf("[SensorManager] Soil moisture calibrated: dry=%u, wet=%u\n", dryValue, wetValue);
-}
-
-auto SensorManager::readADC(const uint8_t channel) -> uint16_t
-{
-  adc_select_input(channel);
-  return adc_read();
-}
-
-auto SensorManager::mapToPercentage(const uint16_t value, const uint16_t minVal,
-                                    const uint16_t maxVal) noexcept -> float
-{
-  if (maxVal <= minVal)
+  if (soilSensor_)
   {
-    return 0.0F;
+    soilSensor_->calibrate(dryValue, wetValue);
   }
-  if (value <= minVal)
-  {
-    return 0.0F;
-  }
-  if (value >= maxVal)
-  {
-    return 100.0F;
-  }
-  return (static_cast<float>(value - minVal) / static_cast<float>(maxVal - minVal)) * 100.0F;
 }

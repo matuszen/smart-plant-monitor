@@ -63,12 +63,15 @@ inline constexpr uint8_t  WATER_LEVEL_WAKE_MIN_SIGNAL   = 5;
 inline constexpr uint16_t WATER_LEVEL_MAX_DEPTH_MM      = WATER_LEVEL_SECTION_HEIGHT_MM * WATER_LEVEL_TOTAL_SECTIONS;
 
 inline constexpr uint8_t WATER_LEVEL_POWER_PIN = 14;
-inline constexpr uint8_t RELAY_PIN             = 13;
+inline constexpr uint8_t PUMP_CONTROL_PIN      = 2;
 inline constexpr bool    RELAY_ACTIVE_HIGH     = true;
+
+inline constexpr uint8_t HALL_POWER_PIN  = 0;
+inline constexpr uint8_t HALL_SIGNAL_PIN = 1;
 
 inline constexpr uint32_t MIN_WATERING_DURATION_MS     = 1'000;
 inline constexpr uint32_t MAX_WATERING_DURATION_MS     = 300'000;
-inline constexpr uint32_t DEFAULT_WATERING_DURATION_MS = 5'000;
+inline constexpr uint32_t DEFAULT_WATERING_DURATION_MS = 3'000;
 inline constexpr uint32_t WATERING_COOLDOWN_MS         = 300'000;
 
 inline constexpr uint32_t SENSOR_READ_INTERVAL_MS = 2'000;

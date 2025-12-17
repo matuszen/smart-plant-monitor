@@ -12,13 +12,16 @@ if (EXISTS ${picoVscode})
     include(${picoVscode})
 endif()
 # ====================================================================================
+
 set(PICO_BOARD pico2_w CACHE STRING "Board type")
+set(PICO_PLATFORM rp2350)
 
 cmake_minimum_required(VERSION 3.13...3.27)
 
 set(PICO_SDK_PATH ${CMAKE_CURRENT_LIST_DIR}/ext/pico-sdk)
+set(FREERTOS_KERNEL_PATH ${CMAKE_CURRENT_LIST_DIR}/ext/FreeRTOS-Kernel)
 
-include(${CMAKE_CURRENT_LIST_DIR}/ext/pico-sdk/external/pico_sdk_import.cmake)
+include(${PICO_SDK_PATH}/external/pico_sdk_import.cmake)
 
 project(smart_plant_monitor C CXX ASM)
 set(CMAKE_C_STANDARD 17)
@@ -27,9 +30,13 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 pico_sdk_init()
 
-include_directories(
+add_library(freertos_config INTERFACE)
+target_include_directories(freertos_config SYSTEM INTERFACE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
+target_compile_definitions(freertos_config INTERFACE projCOVERAGE_TEST=0)
+include(${FREERTOS_KERNEL_PATH}/portable/ThirdParty/GCC/RP2040/FreeRTOS_Kernel_import.cmake)
 
 set(SOURCES
     src/main.cpp
@@ -39,18 +46,24 @@ set(SOURCES
     src/WaterLevelSensor.cpp
     src/LightSensor.cpp
     src/HomeAssistantClient.cpp
+    src/SoilMoistureSensor.cpp
+    src/HallSensor.cpp
+    src/AppTasks.cpp
 )
 
 add_executable(smart_plant_monitor ${SOURCES})
 
 target_link_libraries(smart_plant_monitor
     pico_stdlib
-    pico_cyw43_arch_lwip_poll
+    pico_cyw43_arch_lwip_sys_freertos
     pico_lwip_mqtt
     hardware_adc
     hardware_i2c
     hardware_gpio
     hardware_pwm
+    FreeRTOS-Kernel
+    FreeRTOS-Kernel-Heap4
+    freertos_config
 )
 
 pico_enable_stdio_usb(smart_plant_monitor 1)

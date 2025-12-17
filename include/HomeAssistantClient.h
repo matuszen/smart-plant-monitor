@@ -27,6 +27,22 @@ public:
   void loop(uint32_t nowMs);
   void publishSensorState(uint32_t nowMs, const SensorData& data, bool watering, bool force = false);
 
+  void setControllers(SensorManager* sensorManager, IrrigationController* irrigationController)
+  {
+    sensorManager_        = sensorManager;
+    irrigationController_ = irrigationController;
+  }
+
+  [[nodiscard]] auto getSensorManager() const noexcept -> SensorManager*
+  {
+    return sensorManager_;
+  }
+
+  [[nodiscard]] auto getIrrigationController() const noexcept -> IrrigationController*
+  {
+    return irrigationController_;
+  }
+
 private:
   static void pollWiFi();
   void        ensureMqtt(uint32_t nowMs);

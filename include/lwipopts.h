@@ -2,7 +2,8 @@
 #define _LWIPOPTS_H
 
 // General lwIP options
-#define NO_SYS 1
+#define NO_SYS 0
+#define SYS_LIGHTWEIGHT_PROT 1
 #define LWIP_SOCKET 0
 #define LWIP_NETCONN 0
 
@@ -51,9 +52,11 @@
 // Checksum options
 #define LWIP_CHECKSUM_ON_COPY 1
 
-// Thread options (not used with NO_SYS)
-#define TCPIP_THREAD_STACKSIZE 1024
-#define DEFAULT_THREAD_STACKSIZE 512
+// Thread options (required with NO_SYS=0)
+#define TCPIP_THREAD_STACKSIZE 2048
+#define TCPIP_THREAD_PRIO 3
+#define DEFAULT_THREAD_STACKSIZE 1024
+#define DEFAULT_THREAD_PRIO 3
 
 // Memory options
 #define MEM_ALIGNMENT 4

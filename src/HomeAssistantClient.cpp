@@ -21,10 +21,6 @@
 #include "SensorManager.h"
 #include "Types.h"
 
-#ifndef LWIP_MQTT
-#define LWIP_MQTT 1
-#endif
-
 namespace
 {
 

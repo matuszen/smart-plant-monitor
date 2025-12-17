@@ -3,11 +3,15 @@
 #include <cstdint>
 #include <memory>
 
+#include <FreeRTOS.h>
+#include <semphr.h>
+
 #include <hardware/i2c.h>
 
-#include "Config.h"
 #include "EnvironmentalSensor.h"
+#include "HallSensor.h"
 #include "LightSensor.h"
+#include "SoilMoistureSensor.h"
 #include "Types.h"
 #include "WaterLevelSensor.h"
 
@@ -19,8 +23,8 @@ public:
 
   SensorManager(const SensorManager&)                        = delete;
   auto operator=(const SensorManager&) -> SensorManager&     = delete;
-  SensorManager(SensorManager&&) noexcept                    = default;
-  auto operator=(SensorManager&&) noexcept -> SensorManager& = default;
+  SensorManager(SensorManager&&) noexcept                    = delete;
+  auto operator=(SensorManager&&) noexcept -> SensorManager& = delete;
 
   [[nodiscard]] auto init() -> bool;
 
@@ -29,6 +33,7 @@ public:
   [[nodiscard]] auto readBME280() -> EnvironmentData;
   [[nodiscard]] auto readLightLevel() const -> LightLevelData;
   [[nodiscard]] auto readSoilMoisture() const -> SoilMoistureData;
+  [[nodiscard]] auto readHallSensor() const -> HallSensorData;
   [[nodiscard]] auto readWaterLevel() const -> WaterLevelData;
 
   void calibrateSoilMoisture(uint16_t dryValue, uint16_t wetValue) noexcept;
@@ -47,10 +52,7 @@ private:
   std::unique_ptr<EnvironmentalSensor> environmentalSensor_;
   std::unique_ptr<LightSensor>         lightSensor_;
   std::unique_ptr<WaterLevelSensor>    waterSensor_;
-
-  uint16_t soilDryValue_{Config::SOIL_DRY_VALUE};
-  uint16_t soilWetValue_{Config::SOIL_WET_VALUE};
-
-  [[nodiscard]] static auto readADC(uint8_t channel) -> uint16_t;
-  [[nodiscard]] static auto mapToPercentage(uint16_t value, uint16_t minVal, uint16_t maxVal) noexcept -> float;
+  std::unique_ptr<SoilMoistureSensor>  soilSensor_;
+  std::unique_ptr<HallSensor>          hallSensor_;
+  mutable SemaphoreHandle_t            sensorMutex_{nullptr};
 };

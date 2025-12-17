@@ -91,6 +91,12 @@ auto EnvironmentalSensor::read() -> std::optional<EnvironmentData>
   const auto press = compensatePressure(adcP);
   const auto hum   = compensateHumidity(adcH);
 
+  if (press <= 0)
+  {
+    printf("[BME280] Pressure compensation failed (raw=%d)\n", press);
+    return std::nullopt;
+  }
+
   const auto measurement = EnvironmentData{
     .temperature = temp / 100.0F,
     .humidity    = static_cast<float>(hum) / 1'024.0F,
@@ -170,7 +176,7 @@ auto EnvironmentalSensor::compensateTemp(const int32_t adcT) -> int32_t
   return (tFine_ * 5 + 128) >> 8;
 }
 
-auto EnvironmentalSensor::compensatePressure(const int32_t adcP) const -> uint32_t
+auto EnvironmentalSensor::compensatePressure(const int32_t adcP) const -> int32_t
 {
   auto var1 = static_cast<int64_t>(tFine_) - 128'000;
   auto var2 = var1 * var1 * static_cast<int64_t>(calib_.dig_P6);
@@ -192,7 +198,7 @@ auto EnvironmentalSensor::compensatePressure(const int32_t adcP) const -> uint32
   var2   = (static_cast<int64_t>(calib_.dig_P8) * p) >> 19;
   p      = ((p + var1 + var2) >> 8) + (static_cast<int64_t>(calib_.dig_P7) << 4);
 
-  return static_cast<uint32_t>(p);
+  return static_cast<int32_t>(p);
 }
 
 auto EnvironmentalSensor::compensateHumidity(const int32_t adcH) const -> uint32_t

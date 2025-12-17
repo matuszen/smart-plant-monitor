@@ -2,6 +2,7 @@
 
 #include <cstdint>
 
+#include "Config.h"
 #include "SensorManager.h"
 #include "Types.h"
 
@@ -19,7 +20,7 @@ public:
   auto init() -> bool;
   void update();
 
-  void startWatering(uint32_t durationMs = 5000);
+  void startWatering(uint32_t durationMs = Config::DEFAULT_WATERING_DURATION_MS);
   void stopWatering();
 
   void               setMode(IrrigationMode mode);
@@ -44,7 +45,7 @@ private:
   bool           isWatering_{false};
 
   uint32_t wateringStartTime_{0};
-  uint32_t wateringDuration_{5'000};
+  uint32_t wateringDuration_{Config::DEFAULT_WATERING_DURATION_MS};
   uint32_t lastWateringTime_{0};
 
   static void        activateRelay(bool enable);

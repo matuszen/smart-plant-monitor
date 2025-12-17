@@ -61,6 +61,6 @@ private:
   auto readCalibrationData() -> bool;
 
   auto               compensateTemp(int32_t adcT) -> int32_t;
-  [[nodiscard]] auto compensatePressure(int32_t adcP) const -> uint32_t;
+  [[nodiscard]] auto compensatePressure(int32_t adcP) const -> int32_t;
   [[nodiscard]] auto compensateHumidity(int32_t adcH) const -> uint32_t;
 };

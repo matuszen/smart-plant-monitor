@@ -73,6 +73,21 @@ struct LightLevelData
   }
 };
 
+struct HallSensorData
+{
+  bool magnetDetected{false};
+  bool valid{false};
+
+  [[nodiscard]] constexpr auto isValid() const noexcept -> bool
+  {
+    return valid;
+  }
+  [[nodiscard]] constexpr auto isMagnetPresent() const noexcept -> bool
+  {
+    return valid and magnetDetected;
+  }
+};
+
 struct WaterLevelData
 {
   float    percentage{0.0F};
@@ -103,10 +118,11 @@ struct SensorData
   LightLevelData   light;
   SoilMoistureData soil;
   WaterLevelData   water;
+  HallSensorData   hall;
   uint32_t         timestamp{0};
 
   [[nodiscard]] constexpr auto allValid() const noexcept -> bool
   {
-    return environment.isValid() and soil.isValid() and light.isValid() and water.isValid();
+    return environment.isValid() and soil.isValid() and light.isValid() and water.isValid() and hall.isValid();
   }
 };
