@@ -55,7 +55,7 @@ BreakConstructorInitializers: BeforeColon
 BreakInheritanceList: BeforeColon
 BreakStringLiterals: true
 AlignArrayOfStructures: Right
-BracedInitializerIndentWidth : 2
+BracedInitializerIndentWidth: 2
 AlignAfterOpenBracket: Align
 AlignConsecutiveAssignments:
   Enabled: true

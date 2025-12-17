@@ -8,9 +8,13 @@
 #include <pico/stdio.h>
 #include <pico/time.h>
 
+namespace
+{
+
 inline constexpr uint8_t BME280_ADDR = 0x76;
 
 inline constexpr i2c_inst_t* I2C_PORT    = i2c0;
+inline constexpr uint32_t    I2C_BAUD    = 400'000;
 inline constexpr uint8_t     I2C_SDA_PIN = 4;
 inline constexpr uint8_t     I2C_SCL_PIN = 5;
 
@@ -48,11 +52,20 @@ struct CalibData
   int8_t  dig_H6;
 };
 
-namespace
-{
-
 int32_t   tFine{};
 CalibData calib{};
+
+void setupHardware()
+{
+  stdio_init_all();
+
+  i2c_init(I2C_PORT, I2C_BAUD);
+  gpio_set_function(I2C_SDA_PIN, GPIO_FUNC_I2C);
+  gpio_set_function(I2C_SCL_PIN, GPIO_FUNC_I2C);
+
+  gpio_pull_up(I2C_SDA_PIN);
+  gpio_pull_up(I2C_SCL_PIN);
+}
 
 void writeReg(uint8_t reg, uint8_t value)
 {
@@ -72,10 +85,10 @@ auto bme280Init() -> bool
   readRegs(REG_ID, &id, 1);
   if (id != 0x60)
   {
-    printf("Błąd: Nie wykryto BME280! Odczytano ID: 0x%02X\n", id);
+    printf("Error: BME280 not detected! Read ID: 0x%02X\n", id);
     return false;
   }
-  printf("BME280 znaleziony. ID: 0x%02X\n", id);
+  printf("BME280 founded. ID: 0x%02X\n", id);
 
   writeReg(REG_RESET, 0xB6);
   sleep_ms(100);
@@ -175,16 +188,9 @@ auto compensateHumidity(int32_t adcH) -> uint32_t
 
 auto main() -> int
 {
-  stdio_init_all();
+  setupHardware();
   sleep_ms(5'000);
-
-  i2c_init(I2C_PORT, 400'000);
-  gpio_set_function(I2C_SDA_PIN, GPIO_FUNC_I2C);
-  gpio_set_function(I2C_SCL_PIN, GPIO_FUNC_I2C);
-  gpio_pull_up(I2C_SDA_PIN);
-  gpio_pull_up(I2C_SCL_PIN);
-
-  printf("Start BME280 test...\n");
+  printf("Start environment sensor test...\n");
 
   if (not bme280Init())
   {

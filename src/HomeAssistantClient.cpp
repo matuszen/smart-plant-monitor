@@ -149,10 +149,10 @@ void HomeAssistantClient::publishSensorState(const uint32_t nowMs, const SensorD
   }
 
   std::array<char, 256> payload{};
-  const bool            lightAvailable = data.lightLevelAvailable and data.light.isValid();
-  const bool            waterAvailable = data.waterLevelAvailable and data.water.isValid();
-  const float           lightLux       = lightAvailable ? data.light.lux : 0.0F;
-  const float           waterPct       = waterAvailable ? data.water.percentage : 0.0F;
+  const bool            isLightDataValid = data.light.isValid();
+  const bool            isWaterDataValid = data.water.isValid();
+  const float           lightLux         = isLightDataValid ? data.light.lux : 0.0F;
+  const float           waterPct         = isWaterDataValid ? data.water.percentage : 0.0F;
 
   const int payloadLen = std::snprintf(
     payload.data(), payload.size(),
@@ -160,7 +160,7 @@ void HomeAssistantClient::publishSensorState(const uint32_t nowMs, const SensorD
     "\"soil_moisture\":%.2f,\"light_lux\":%.2f,\"light_available\":%s,"
     "\"water_level\":%.2f,\"water_level_available\":%s,\"watering\":%s}",
     data.environment.temperature, data.environment.humidity, data.environment.pressure, data.soil.percentage, lightLux,
-    lightAvailable ? "true" : "false", waterPct, waterAvailable ? "true" : "false", watering ? "true" : "false");
+    isLightDataValid ? "true" : "false", waterPct, isWaterDataValid ? "true" : "false", watering ? "true" : "false");
 
   if (payloadLen < 0 or static_cast<size_t>(payloadLen) >= payload.size())
   {
@@ -372,9 +372,9 @@ void HomeAssistantClient::handleCommand(const char* payload)
     irrigationController_->stopWatering();
     irrigationController_->setMode(IrrigationMode::OFF);
   }
-  else if (std::strcmp(payload, "AUTO") == 0)
+  else if (std::strcmp(payload, "HUMIDITY") == 0)
   {
-    irrigationController_->setMode(IrrigationMode::AUTOMATIC);
+    irrigationController_->setMode(IrrigationMode::HUMIDITY);
   }
 
   if (hasData_)

@@ -47,9 +47,9 @@ void IrrigationController::update()
     return;
   }
 
-  if (mode_ == IrrigationMode::AUTOMATIC)
+  if (mode_ == IrrigationMode::HUMIDITY)
   {
-    handleAutomaticMode();
+    handleHumidityBasedMode();
   }
 
   if (isWatering_)
@@ -161,7 +161,7 @@ auto IrrigationController::canStartWatering() const -> bool
   return timeSinceLast >= Config::WATERING_COOLDOWN_MS;
 }
 
-void IrrigationController::handleAutomaticMode()
+void IrrigationController::handleHumidityBasedMode()
 {
   if (isWatering_)
   {

@@ -33,10 +33,9 @@ include_directories(
 
 set(SOURCES
     src/main.cpp
-    src/BME280.cpp
+    src/EnvironmentalSensor.cpp
     src/SensorManager.cpp
     src/IrrigationController.cpp
-    src/DataLogger.cpp
     src/WaterLevelSensor.cpp
     src/LightSensor.cpp
     src/HomeAssistantClient.cpp

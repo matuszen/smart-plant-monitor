@@ -12,10 +12,11 @@ concept SensorValue = Numeric<T> and std::copyable<T>;
 
 enum class IrrigationMode : uint8_t
 {
-  OFF       = 0,
-  MANUAL    = 1,
-  AUTOMATIC = 2,
-  SCHEDULED = 3
+  OFF                = 0,
+  MANUAL             = 1,
+  TIMER              = 2,
+  HUMIDITY           = 3,
+  EVAPOTRANSPIRATION = 4
 };
 
 enum class SystemStatus : uint8_t
@@ -27,7 +28,7 @@ enum class SystemStatus : uint8_t
   LOW_WATER    = 4
 };
 
-struct BME280Data
+struct EnvironmentData
 {
   float temperature{0.0F};
   float humidity{0.0F};
@@ -75,7 +76,7 @@ struct LightLevelData
 struct WaterLevelData
 {
   float    percentage{0.0F};
-  uint16_t rawValue{0};
+  uint16_t activeSections{0};
   bool     valid{false};
 
   [[nodiscard]] constexpr auto isValid() const noexcept -> bool
@@ -98,30 +99,14 @@ struct WaterLevelData
 
 struct SensorData
 {
-  BME280Data       environment;
+  EnvironmentData  environment;
   LightLevelData   light;
   SoilMoistureData soil;
   WaterLevelData   water;
-  bool             lightLevelAvailable{false};
-  bool             waterLevelAvailable{false};
   uint32_t         timestamp{0};
 
   [[nodiscard]] constexpr auto allValid() const noexcept -> bool
   {
-    return environment.isValid() and soil.isValid() and (not lightLevelAvailable or light.isValid()) and
-           (not waterLevelAvailable or water.isValid());
-  }
-};
-
-struct DataLogEntry
-{
-  SensorData data;
-  bool       wasWatering{false};
-  bool       uploaded{false};
-  uint32_t   id{0};
-
-  [[nodiscard]] constexpr auto needsUpload() const noexcept -> bool
-  {
-    return not uploaded and data.allValid();
+    return environment.isValid() and soil.isValid() and light.isValid() and water.isValid();
   }
 };

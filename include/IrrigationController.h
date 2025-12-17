@@ -39,7 +39,7 @@ public:
 
 private:
   SensorManager* sensorManager_;
-  IrrigationMode mode_{IrrigationMode::AUTOMATIC};
+  IrrigationMode mode_{IrrigationMode::HUMIDITY};
   bool           initialized_{false};
   bool           isWatering_{false};
 
@@ -50,5 +50,5 @@ private:
   static void        activateRelay(bool enable);
   [[nodiscard]] auto shouldStartWatering() const -> bool;
   [[nodiscard]] auto canStartWatering() const -> bool;
-  void               handleAutomaticMode();
+  void               handleHumidityBasedMode();
 };
