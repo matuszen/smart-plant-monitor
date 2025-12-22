@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
 
@@ -47,9 +48,16 @@ void IrrigationController::update()
     return;
   }
 
+  sleepHintMs_ = Config::IRRIGATION_ACTIVE_TICK_MS;
+
   if (mode_ == IrrigationMode::HUMIDITY)
   {
     handleHumidityBasedMode();
+  }
+
+  if (mode_ == IrrigationMode::EVAPOTRANSPIRATION)
+  {
+    handleEvapotranspirationMode();
   }
 
   if (isWatering_)
@@ -83,6 +91,7 @@ void IrrigationController::startWatering(const uint32_t durationMs)
 
   isWatering_        = true;
   wateringStartTime_ = to_ms_since_boot(get_absolute_time());
+  sleepHintMs_       = Config::IRRIGATION_ACTIVE_TICK_MS;
   activateRelay(true);
 }
 
@@ -98,6 +107,7 @@ void IrrigationController::stopWatering()
 
   isWatering_       = false;
   lastWateringTime_ = to_ms_since_boot(get_absolute_time());
+  sleepHintMs_      = Config::IRRIGATION_ACTIVE_TICK_MS;
   activateRelay(false);
 }
 
@@ -116,6 +126,15 @@ void IrrigationController::setMode(const IrrigationMode mode)
   }
 
   mode_ = mode;
+}
+
+auto IrrigationController::nextSleepHintMs() const -> uint32_t
+{
+  if (isWatering_)
+  {
+    return Config::IRRIGATION_ACTIVE_TICK_MS;
+  }
+  return sleepHintMs_;
 }
 
 void IrrigationController::activateRelay(const bool enable)
@@ -180,4 +199,80 @@ void IrrigationController::handleHumidityBasedMode()
   {
     startWatering();
   }
+}
+
+void IrrigationController::handleEvapotranspirationMode()
+{
+  if (sensorManager_ == nullptr)
+  {
+    return;
+  }
+
+  const auto env        = sensorManager_->readBME280();
+  const auto soil       = sensorManager_->readSoilMoisture();
+  const auto waterLevel = sensorManager_->readWaterLevel();
+
+  if (isWatering_)
+  {
+    if (soil.valid and soil.percentage >= Config::SOIL_MOISTURE_WET_THRESHOLD)
+    {
+      printf("[IrrigationController] Soil moisture sufficient, stopping early\n");
+      stopWatering();
+    }
+    return;
+  }
+
+  if ((not env.isValid()) or (not soil.valid))
+  {
+    handleHumidityBasedMode();
+    return;
+  }
+
+  if ((not waterLevel.isValid()) or waterLevel.isLow())
+  {
+    return;
+  }
+
+  lastSoilPercentage_ = soil.percentage;
+
+  if (soil.percentage < Config::SOIL_MOISTURE_DRY_THRESHOLD)
+  {
+    startWatering();
+    return;
+  }
+
+  const auto dropPerHour = computeEvapoLossPerHour(env);
+  if (dropPerHour <= 0.0F)
+  {
+    sleepHintMs_            = Config::EVAPO_MAX_SLEEP_MS;
+    nextWateringEstimateMs_ = to_ms_since_boot(get_absolute_time()) + sleepHintMs_;
+    return;
+  }
+
+  const auto marginPct        = soil.percentage - Config::SOIL_MOISTURE_DRY_THRESHOLD;
+  const auto hoursUntilDry    = marginPct / dropPerHour;
+  const auto projectedSleepMs = hoursUntilDry * 3'600'000.0;
+  const auto clampedSleepMs   = std::clamp(projectedSleepMs, static_cast<double>(Config::IRRIGATION_ACTIVE_TICK_MS),
+                                           static_cast<double>(Config::EVAPO_MAX_SLEEP_MS));
+
+  sleepHintMs_            = static_cast<uint32_t>(clampedSleepMs);
+  nextWateringEstimateMs_ = to_ms_since_boot(get_absolute_time()) + sleepHintMs_;
+
+  printf("[IrrigationController] ET forecast: %.2f%%/h, next check in %u ms (eta %u)\n", dropPerHour, sleepHintMs_,
+         nextWateringEstimateMs_);
+}
+
+auto IrrigationController::computeEvapoLossPerHour(const EnvironmentData& env) -> float
+{
+  const auto tempC          = env.temperature;
+  const auto humidity       = std::clamp(env.humidity, 0.0F, 100.0F);
+  const auto satVapor       = 0.6108F * std::exp((17.27F * tempC) / (tempC + 237.3F));
+  const auto vpd            = satVapor * (1.0F - (humidity / 100.0F));
+  const auto pressureK      = env.pressure * 0.001F;
+  const auto pressureFactor = std::max(0.7F, pressureK / 101.325F);
+
+  const auto etMmPerHour = std::max(0.0F, (0.12F + 0.45F * vpd) * pressureFactor);
+  const auto pctPerHour  = (etMmPerHour / Config::EVAPO_SOIL_BUCKET_MM) * 100.0F;
+
+  return std::max(pctPerHour, Config::EVAPO_MIN_DROP_PER_HOUR_PCT);
 }

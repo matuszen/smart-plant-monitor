@@ -4,10 +4,11 @@
 // General lwIP options
 #define NO_SYS 0
 #define SYS_LIGHTWEIGHT_PROT 1
-#define LWIP_SOCKET 0
-#define LWIP_NETCONN 0
+#define LWIP_SOCKET 1
+#define LWIP_NETCONN 1
+#define LWIP_TIMEVAL_PRIVATE 0
 
-// MQTT / application protocols
+// MQTT
 #define LWIP_MQTT 1
 #define MQTT_OUTPUT_RINGBUF_SIZE 1024
 #define MQTT_REQ_MAX_IN_FLIGHT 4
@@ -37,7 +38,7 @@
 #define LWIP_DNS 1
 #define DNS_MAX_SERVERS 2
 
-// IGMP options (for multicast)
+// IGMP options
 #define LWIP_IGMP 1
 
 // Network interface options
@@ -52,11 +53,18 @@
 // Checksum options
 #define LWIP_CHECKSUM_ON_COPY 1
 
-// Thread options (required with NO_SYS=0)
+// Thread options
 #define TCPIP_THREAD_STACKSIZE 2048
 #define TCPIP_THREAD_PRIO 3
 #define DEFAULT_THREAD_STACKSIZE 1024
 #define DEFAULT_THREAD_PRIO 3
+
+// Mailbox sizes
+#define TCPIP_MBOX_SIZE 16
+#define DEFAULT_UDP_RECVMBOX_SIZE 8
+#define DEFAULT_TCP_RECVMBOX_SIZE 8
+#define DEFAULT_RAW_RECVMBOX_SIZE 8
+#define DEFAULT_ACCEPTMBOX_SIZE 8
 
 // Memory options
 #define MEM_ALIGNMENT 4

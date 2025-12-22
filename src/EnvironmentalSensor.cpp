@@ -91,12 +91,6 @@ auto EnvironmentalSensor::read() -> std::optional<EnvironmentData>
   const auto press = compensatePressure(adcP);
   const auto hum   = compensateHumidity(adcH);
 
-  if (press <= 0)
-  {
-    printf("[BME280] Pressure compensation failed (raw=%d)\n", press);
-    return std::nullopt;
-  }
-
   const auto measurement = EnvironmentData{
     .temperature = temp / 100.0F,
     .humidity    = static_cast<float>(hum) / 1'024.0F,
@@ -142,23 +136,23 @@ auto EnvironmentalSensor::readCalibrationData() -> bool
   calib_.dig_P8 = static_cast<int16_t>((buf[21] << 8) | buf[20]);
   calib_.dig_P9 = static_cast<int16_t>((buf[23] << 8) | buf[22]);
 
+  uint8_t h1{};
+  if (not readRegs(0xA1, &h1, 1))
+  {
+    return false;
+  }
+  calib_.dig_H1 = h1;
+
   if (not readRegs(REG_CALIB_26, buf.data(), 7))
   {
     return false;
   }
 
-  calib_.dig_H1 = 0;
   calib_.dig_H2 = static_cast<int16_t>((buf[1] << 8) | buf[0]);
   calib_.dig_H3 = buf[2];
   calib_.dig_H4 = static_cast<int16_t>((buf[3] << 4) | (buf[4] & 0x0F));
   calib_.dig_H5 = static_cast<int16_t>((buf[5] << 4) | (buf[4] >> 4));
   calib_.dig_H6 = static_cast<int8_t>(buf[6]);
-
-  uint8_t h1{};
-  if (readRegs(0xA1, &h1, 1))
-  {
-    calib_.dig_H1 = h1;
-  }
 
   return true;
 }
@@ -192,11 +186,11 @@ auto EnvironmentalSensor::compensatePressure(const int32_t adcP) const -> int32_
     return 0;
   }
 
-  auto p = 1'048'576 - adcP;
-  p      = (((p << 31) - var2) * 3'125) / var1;
-  var1   = (static_cast<int64_t>(calib_.dig_P9) * (p >> 13) * (p >> 13)) >> 25;
-  var2   = (static_cast<int64_t>(calib_.dig_P8) * p) >> 19;
-  p      = ((p + var1 + var2) >> 8) + (static_cast<int64_t>(calib_.dig_P7) << 4);
+  int64_t p = 1'048'576 - adcP;
+  p         = (((p << 31) - var2) * 3'125) / var1;
+  var1      = (static_cast<int64_t>(calib_.dig_P9) * (p >> 13) * (p >> 13)) >> 25;
+  var2      = (static_cast<int64_t>(calib_.dig_P8) * p) >> 19;
+  p         = ((p + var1 + var2) >> 8) + (static_cast<int64_t>(calib_.dig_P7) << 4);
 
   return static_cast<int32_t>(p);
 }

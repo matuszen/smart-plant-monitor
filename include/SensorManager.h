@@ -9,7 +9,6 @@
 #include <hardware/i2c.h>
 
 #include "EnvironmentalSensor.h"
-#include "HallSensor.h"
 #include "LightSensor.h"
 #include "SoilMoistureSensor.h"
 #include "Types.h"
@@ -33,7 +32,6 @@ public:
   [[nodiscard]] auto readBME280() -> EnvironmentData;
   [[nodiscard]] auto readLightLevel() const -> LightLevelData;
   [[nodiscard]] auto readSoilMoisture() const -> SoilMoistureData;
-  [[nodiscard]] auto readHallSensor() const -> HallSensorData;
   [[nodiscard]] auto readWaterLevel() const -> WaterLevelData;
 
   void calibrateSoilMoisture(uint16_t dryValue, uint16_t wetValue) noexcept;
@@ -53,6 +51,5 @@ private:
   std::unique_ptr<LightSensor>         lightSensor_;
   std::unique_ptr<WaterLevelSensor>    waterSensor_;
   std::unique_ptr<SoilMoistureSensor>  soilSensor_;
-  std::unique_ptr<HallSensor>          hallSensor_;
   mutable SemaphoreHandle_t            sensorMutex_{nullptr};
 };

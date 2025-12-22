@@ -57,7 +57,7 @@ HomeAssistantClient::HomeAssistantClient(SensorManager* sensorManager, Irrigatio
 
 HomeAssistantClient::~HomeAssistantClient()
 {
-  if (Config::ENABLE_HOME_ASSISTANT)
+  if (Config::ENABLE_HOME_ASSISTANT and ownsCyw43_)
   {
     cyw43_arch_deinit();
   }
@@ -72,20 +72,24 @@ auto HomeAssistantClient::init() -> bool
 
   printf("[HA] Initializing Wi-Fi and MQTT integration...\n");
 
-  if (cyw43_arch_init() != 0)
+  if (not wifiReady_)
   {
-    printf("[HA] ERROR: cyw43_arch_init failed\n");
-    return false;
+    if (cyw43_arch_init() != 0)
+    {
+      printf("[HA] ERROR: cyw43_arch_init failed\n");
+      return false;
+    }
+    cyw43_arch_enable_sta_mode();
+    ownsCyw43_ = true;
   }
 
-  cyw43_arch_enable_sta_mode();
-
-  printf("[HA] Connecting to Wi-Fi SSID '%s'...\n", Config::WIFI_SSID);
-  const int wifiResult =
-    cyw43_arch_wifi_connect_timeout_ms(Config::WIFI_SSID, Config::WIFI_PASSWORD, CYW43_AUTH_WPA2_AES_PSK, 30'000);
-  if (wifiResult != 0)
+  if (wifiReady_)
   {
-    printf("[HA] ERROR: Wi-Fi connect failed (%d)\n", wifiResult);
+    printf("[HA] Wi-Fi already provisioned\n");
+  }
+  else
+  {
+    printf("[HA] ERROR: Wi-Fi not provisioned\n");
     return false;
   }
 

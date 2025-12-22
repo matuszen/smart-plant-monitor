@@ -43,6 +43,11 @@ public:
     return irrigationController_;
   }
 
+  void setWifiReady(bool ready) noexcept
+  {
+    wifiReady_ = ready;
+  }
+
 private:
   static void pollWiFi();
   void        ensureMqtt(uint32_t nowMs);
@@ -71,6 +76,7 @@ private:
   ip_addr_t      brokerIp_{};
   bool           brokerIpValid_{false};
   bool           wifiReady_{false};
+  bool           ownsCyw43_{false};
   bool           mqttConnected_{false};
   bool           discoveryPublished_{false};
 

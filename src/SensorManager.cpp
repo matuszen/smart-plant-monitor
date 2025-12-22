@@ -12,7 +12,6 @@
 
 #include "Config.h"
 #include "EnvironmentalSensor.h"
-#include "HallSensor.h"
 #include "LightSensor.h"
 #include "SensorManager.h"
 #include "SoilMoistureSensor.h"
@@ -136,13 +135,6 @@ auto SensorManager::init() -> bool
     waterSensor_.reset();
   }
 
-  hallSensor_ = std::make_unique<HallSensor>(Config::HALL_POWER_PIN, Config::HALL_SIGNAL_PIN);
-  if (not hallSensor_->init())
-  {
-    printf("[SensorManager] WARNING: Hall sensor not detected\n");
-    hallSensor_.reset();
-  }
-
   initialized_ = true;
   printf("[SensorManager] Initialization complete\n");
   return true;
@@ -155,7 +147,6 @@ auto SensorManager::readAllSensors() -> SensorData
     .light       = readLightLevel(),
     .soil        = readSoilMoisture(),
     .water       = readWaterLevel(),
-    .hall        = readHallSensor(),
     .timestamp   = to_ms_since_boot(get_absolute_time()),
   };
   return data;
@@ -228,24 +219,6 @@ auto SensorManager::readWaterLevel() const -> WaterLevelData
   if (not measurement)
   {
     return WaterLevelData{};
-  }
-
-  return measurement.value();
-}
-
-auto SensorManager::readHallSensor() const -> HallSensorData
-{
-  const MutexGuard guard(sensorMutex_);
-
-  if (not hallSensor_)
-  {
-    return HallSensorData{};
-  }
-
-  const auto measurement = hallSensor_->read();
-  if (not measurement)
-  {
-    return HallSensorData{};
   }
 
   return measurement.value();

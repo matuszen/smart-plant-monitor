@@ -15,6 +15,7 @@
 #include "HomeAssistantClient.h"
 #include "IrrigationController.h"
 #include "SensorManager.h"
+#include "WifiProvisioner.h"
 
 namespace
 {
@@ -22,6 +23,7 @@ namespace
 SensorManager        sensorManager;
 IrrigationController irrigationController(&sensorManager);
 HomeAssistantClient  haClient(&sensorManager, &irrigationController);
+WifiProvisioner      wifiProvisioner;
 
 void initSystem()
 {
@@ -39,14 +41,6 @@ void initSystem()
   if (not irrigationController.init())
   {
     printf("ERROR: IrrigationController initialization failed!\n");
-  }
-
-  if constexpr (Config::ENABLE_HOME_ASSISTANT)
-  {
-    if (not haClient.init())
-    {
-      printf("WARNING: Home Assistant integration failed to initialize (Wi-Fi/MQTT)\n");
-    }
   }
 
   printf("\n=================================================\n");
@@ -72,7 +66,7 @@ auto main() -> int
 
   initSystem();
 
-  startAppTasks(sensorManager, irrigationController, haClient);
+  startAppTasks(sensorManager, irrigationController, haClient, wifiProvisioner);
 
   while (true)
   {

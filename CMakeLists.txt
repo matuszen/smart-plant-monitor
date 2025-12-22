@@ -47,8 +47,9 @@ set(SOURCES
     src/LightSensor.cpp
     src/HomeAssistantClient.cpp
     src/SoilMoistureSensor.cpp
-    src/HallSensor.cpp
     src/AppTasks.cpp
+    src/WifiProvisioner.cpp
+    libs/src/dhcpserver.c
 )
 
 add_executable(smart_plant_monitor ${SOURCES})
