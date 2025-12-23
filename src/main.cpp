@@ -33,12 +33,12 @@ void initSystem()
          static_cast<int>(Config::SYSTEM_VERSION.size()), Config::SYSTEM_VERSION.data());
   printf("=================================================\n\n");
 
-  if (not sensorManager.init())
+  if (not sensorManager.init()) [[unlikely]]
   {
     printf("ERROR: SensorManager initialization failed!\n");
   }
 
-  if (not irrigationController.init())
+  if (not irrigationController.init()) [[unlikely]]
   {
     printf("ERROR: IrrigationController initialization failed!\n");
   }
@@ -54,7 +54,7 @@ void initSystem()
   printf("- Pump control: GP%d\n", Config::PUMP_CONTROL_PIN);
   printf("=================================================\n\n");
 
-  printf("System ready! Starting FreeRTOS tasks...\n\n");
+  printf("System ready! Starting tasks...\n\n");
 }
 
 }  // namespace
@@ -62,10 +62,12 @@ void initSystem()
 auto main() -> int
 {
   stdio_init_all();
-  sleep_ms(5'000);
+  if constexpr (Config::ENABLE_SERIAL_DEBUG)
+  {
+    sleep_ms(Config::INITIAL_DELAY_MS);
+  }
 
   initSystem();
-
   startAppTasks(sensorManager, irrigationController, haClient, wifiProvisioner);
 
   while (true)
@@ -74,26 +76,4 @@ auto main() -> int
   }
 
   return 0;
-}
-
-extern "C"
-{
-  void vApplicationMallocFailedHook(void)
-  {
-    panic("FreeRTOS: Malloc Failed! Brak pamieci na stercie.");
-  }
-
-  void vApplicationStackOverflowHook(TaskHandle_t xTask, char* pcTaskName)
-  {
-    (void)xTask;
-    panic("FreeRTOS: Stack Overflow w zadaniu: %s", pcTaskName);
-  }
-
-  void vApplicationIdleHook(void)
-  {
-  }
-
-  void vApplicationTickHook(void)
-  {
-  }
 }

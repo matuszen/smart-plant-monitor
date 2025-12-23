@@ -13,9 +13,7 @@ inline constexpr std::string_view SYSTEM_VERSION    = "1.0";
 inline constexpr std::string_view SYSTEM_NAME       = "Smart Plant Monitor";
 inline constexpr const char*      DEVICE_IDENTIFIER = "smart-plant-monitor";
 
-inline constexpr bool        ENABLE_HOME_ASSISTANT    = false;
-inline constexpr const char* WIFI_SSID                = "NetworkName";
-inline constexpr const char* WIFI_PASSWORD            = "PASSWD1234";
+inline constexpr bool        ENABLE_HOME_ASSISTANT    = true;
 inline constexpr const char* MQTT_BROKER_HOST         = "192.168.1.10";
 inline constexpr uint16_t    MQTT_BROKER_PORT         = 1883;
 inline constexpr const char* MQTT_CLIENT_ID           = DEVICE_IDENTIFIER;
@@ -88,12 +86,11 @@ inline constexpr float    EVAPO_SOIL_BUCKET_MM        = 35.0F;
 inline constexpr float    EVAPO_MIN_DROP_PER_HOUR_PCT = 0.05F;
 inline constexpr uint32_t EVAPO_MAX_SLEEP_MS          = 900'000;
 
+inline constexpr uint32_t INITIAL_DELAY_MS    = 5'000;
 inline constexpr bool     ENABLE_SERIAL_DEBUG = true;
 inline constexpr size_t   MAX_LOG_ENTRIES     = 1'000;
 inline constexpr uint32_t SERIAL_BAUDRATE     = 115'200;
 
-inline constexpr uint32_t SENSOR_READ_INTERVAL_MS = ENABLE_SERIAL_DEBUG ? 10'000 : 3'600'000;
-inline constexpr uint32_t BME280_READ_INTERVAL_MS = 10'000;
-inline constexpr uint32_t DATA_SEND_INTERVAL_MS   = 60'000;
+inline constexpr uint32_t DEFAULT_SENSOR_READ_INTERVAL_MS = ENABLE_SERIAL_DEBUG ? 15'000 : 3'600'000;
 
 }  // namespace Config

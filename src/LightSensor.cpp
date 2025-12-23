@@ -27,19 +27,19 @@ auto LightSensor::init() -> bool
     return true;
   }
 
-  if (i2c_ == nullptr)
+  if (i2c_ == nullptr) [[unlikely]]
   {
     printf("[LightSensor] ERROR: Missing I2C instance\n");
     return false;
   }
 
-  if (not writeCommand(POWER_ON_CMD))
+  if (not writeCommand(POWER_ON_CMD)) [[unlikely]]
   {
     printf("[LightSensor] Power on failed\n");
     return false;
   }
 
-  if (not writeCommand(CONT_HIGH_RES_MODE_CMD))
+  if (not writeCommand(CONT_HIGH_RES_MODE_CMD)) [[unlikely]]
   {
     printf("[LightSensor] Mode set failed\n");
     return false;
@@ -52,14 +52,14 @@ auto LightSensor::init() -> bool
 
 auto LightSensor::read() -> std::optional<LightLevelData>
 {
-  if (not initialized_ and not init())
+  if (not initialized_ and not init()) [[unlikely]]
   {
     return std::nullopt;
   }
 
   std::array<uint8_t, 2> buffer{};
   const auto             count = i2c_read_blocking(i2c_, address_, buffer.data(), buffer.size(), false);
-  if (count != static_cast<int>(buffer.size()))
+  if (count != static_cast<int>(buffer.size())) [[unlikely]]
   {
     initialized_ = false;
     return std::nullopt;
@@ -67,12 +67,12 @@ auto LightSensor::read() -> std::optional<LightLevelData>
 
   const auto raw = static_cast<uint16_t>((buffer[0] << 8U) | buffer[1]);
 
-  const auto reading = LightLevelData{
+  const auto data = LightLevelData{
     .rawValue = raw,
     .lux      = (static_cast<float>(raw) / 1.2F) * CORRECTION_FACTOR,
     .valid    = true,
   };
-  return reading;
+  return data;
 }
 
 auto LightSensor::writeCommand(const uint8_t command) -> bool

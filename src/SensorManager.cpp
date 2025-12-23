@@ -8,6 +8,7 @@
 #include <hardware/adc.h>
 #include <hardware/gpio.h>
 #include <hardware/i2c.h>
+#include <hardware/structs/io_bank0.h>
 #include <pico/time.h>
 
 #include "Config.h"
@@ -17,6 +18,7 @@
 #include "SoilMoistureSensor.h"
 #include "Types.h"
 #include "WaterLevelSensor.h"
+#include "portmacrocommon.h"
 
 namespace
 {
@@ -73,7 +75,7 @@ auto SensorManager::init() -> bool
   printf("[SensorManager] Initializing...\n");
 
   sensorMutex_ = xSemaphoreCreateRecursiveMutex();
-  if (sensorMutex_ == nullptr)
+  if (sensorMutex_ == nullptr) [[unlikely]]
   {
     printf("[SensorManager] ERROR: Failed to create sensor mutex\n");
     return false;
@@ -84,7 +86,7 @@ auto SensorManager::init() -> bool
   auto* sharedI2C = resolveI2CInstance(Config::BME280_I2C_INSTANCE);
   auto* waterI2C  = resolveI2CInstance(Config::WATER_LEVEL_I2C_INSTANCE);
 
-  if ((sharedI2C == nullptr) or (waterI2C == nullptr))
+  if ((sharedI2C == nullptr) or (waterI2C == nullptr)) [[unlikely]]
   {
     printf("[SensorManager] ERROR: Invalid I2C instance configuration\n");
     return false;
@@ -107,13 +109,13 @@ auto SensorManager::init() -> bool
   gpio_put(Config::WATER_LEVEL_POWER_PIN, true);
 
   environmentalSensor_ = std::make_unique<EnvironmentalSensor>(sharedI2C, Config::BME280_I2C_ADDRESS);
-  if (not environmentalSensor_->init())
+  if (not environmentalSensor_->init()) [[unlikely]]
   {
     printf("[SensorManager] WARNING: BME280 not detected\n");
     environmentalSensor_.reset();
   }
   lightSensor_ = std::make_unique<LightSensor>(sharedI2C, Config::LIGHT_SENSOR_I2C_ADDRESS);
-  if (not lightSensor_->init())
+  if (not lightSensor_->init()) [[unlikely]]
   {
     printf("[SensorManager] WARNING: BH1750 not detected\n");
     lightSensor_.reset();
@@ -121,7 +123,7 @@ auto SensorManager::init() -> bool
 
   soilSensor_ = std::make_unique<SoilMoistureSensor>(Config::SOIL_MOISTURE_ADC_PIN, Config::SOIL_MOISTURE_ADC_CHANNEL,
                                                      Config::SOIL_MOISTURE_POWER_UP_PIN);
-  if (not soilSensor_->init())
+  if (not soilSensor_->init()) [[unlikely]]
   {
     printf("[SensorManager] WARNING: Soil moisture sensor init failed\n");
     soilSensor_.reset();
@@ -129,7 +131,7 @@ auto SensorManager::init() -> bool
 
   waterSensor_ =
     std::make_unique<WaterLevelSensor>(waterI2C, Config::WATER_LEVEL_LOW_ADDR, Config::WATER_LEVEL_HIGH_ADDR);
-  if (not waterSensor_->init())
+  if (not waterSensor_->init()) [[unlikely]]
   {
     printf("[SensorManager] WARNING: Water level sensor not detected\n");
     waterSensor_.reset();
@@ -156,13 +158,13 @@ auto SensorManager::readBME280() -> EnvironmentData
 {
   const MutexGuard guard(sensorMutex_);
 
-  if (not environmentalSensor_)
+  if (not environmentalSensor_) [[unlikely]]
   {
     return EnvironmentData{};
   }
 
   const auto measurement = environmentalSensor_->read();
-  if (not measurement)
+  if (not measurement) [[unlikely]]
   {
     return EnvironmentData{};
   }
@@ -174,13 +176,13 @@ auto SensorManager::readLightLevel() const -> LightLevelData
 {
   const MutexGuard guard(sensorMutex_);
 
-  if (not lightSensor_)
+  if (not lightSensor_) [[unlikely]]
   {
     return LightLevelData{};
   }
 
   const auto measurement = lightSensor_->read();
-  if (not measurement)
+  if (not measurement) [[unlikely]]
   {
     return LightLevelData{};
   }
@@ -192,13 +194,13 @@ auto SensorManager::readSoilMoisture() const -> SoilMoistureData
 {
   const MutexGuard guard(sensorMutex_);
 
-  if (not soilSensor_)
+  if (not soilSensor_) [[unlikely]]
   {
     return SoilMoistureData{};
   }
 
   const auto measurement = soilSensor_->read();
-  if (not measurement)
+  if (not measurement) [[unlikely]]
   {
     return SoilMoistureData{};
   }
@@ -210,13 +212,13 @@ auto SensorManager::readWaterLevel() const -> WaterLevelData
 {
   const MutexGuard guard(sensorMutex_);
 
-  if (not waterSensor_)
+  if (not waterSensor_) [[unlikely]]
   {
     return WaterLevelData{};
   }
 
   const auto measurement = waterSensor_->read();
-  if (not measurement)
+  if (not measurement) [[unlikely]]
   {
     return WaterLevelData{};
   }

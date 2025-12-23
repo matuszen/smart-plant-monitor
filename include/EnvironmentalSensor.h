@@ -4,8 +4,9 @@
 #include <cstdint>
 #include <optional>
 
-#include "Types.h"
 #include <hardware/i2c.h>
+
+#include "Types.h"
 
 class EnvironmentalSensor
 {

@@ -151,13 +151,13 @@ auto IrrigationController::shouldStartWatering() const -> bool
   }
 
   const auto soilData = sensorManager_->readSoilMoisture();
-  if (not soilData.valid)
+  if (not soilData.valid) [[unlikely]]
   {
     return false;
   }
 
   const auto waterLevel = sensorManager_->readWaterLevel();
-  if (not waterLevel.isValid())
+  if (not waterLevel.isValid()) [[unlikely]]
   {
     return false;
   }
@@ -203,7 +203,7 @@ void IrrigationController::handleHumidityBasedMode()
 
 void IrrigationController::handleEvapotranspirationMode()
 {
-  if (sensorManager_ == nullptr)
+  if (sensorManager_ == nullptr) [[unlikely]]
   {
     return;
   }
@@ -222,7 +222,7 @@ void IrrigationController::handleEvapotranspirationMode()
     return;
   }
 
-  if ((not env.isValid()) or (not soil.valid))
+  if ((not env.isValid()) or (not soil.valid)) [[unlikely]]
   {
     handleHumidityBasedMode();
     return;

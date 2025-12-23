@@ -1,4 +1,3 @@
-
 #include <HomeAssistantClient.h>
 #include <IrrigationController.h>
 #include <SensorManager.h>
@@ -6,12 +5,14 @@
 #include <cstdio>
 
 #include "portmacrocommon.h"
+#include "projdefs.h"
 #include <FreeRTOS.h>
 #include <queue.h>
 #include <task.h>
 
 #include <hardware/gpio.h>
 #include <hardware/watchdog.h>
+#include <pico/platform/panic.h>
 #include <pico/stdlib.h>
 #include <pico/time.h>
 
@@ -19,22 +20,43 @@
 #include "Config.h"
 #include "Types.h"
 #include "WifiProvisioner.h"
-#include "projdefs.h"
+
+extern "C"
+{
+  void vApplicationMallocFailedHook(void)
+  {
+    panic("FreeRTOS: Malloc Failed! Brak pamieci na stercie.");
+  }
+
+  void vApplicationStackOverflowHook(TaskHandle_t xTask, char* pcTaskName)
+  {
+    (void)xTask;
+    panic("FreeRTOS: Stack Overflow w zadaniu: %s", pcTaskName);
+  }
+
+  void vApplicationIdleHook(void)
+  {
+  }
+
+  void vApplicationTickHook(void)
+  {
+  }
+}
 
 namespace
 {
 
-constexpr UBaseType_t SENSOR_TASK_PRIORITY{tskIDLE_PRIORITY + 2};
-constexpr UBaseType_t IRRIGATION_TASK_PRIORITY{tskIDLE_PRIORITY + 1};
-constexpr UBaseType_t WIFI_PROV_PRIORITY{tskIDLE_PRIORITY + 3};
-constexpr UBaseType_t BUTTON_TASK_PRIORITY{tskIDLE_PRIORITY + 4};
-constexpr UBaseType_t LED_TASK_PRIORITY{tskIDLE_PRIORITY + 1};
+inline constexpr UBaseType_t SENSOR_TASK_PRIORITY{tskIDLE_PRIORITY + 2};
+inline constexpr UBaseType_t IRRIGATION_TASK_PRIORITY{tskIDLE_PRIORITY + 1};
+inline constexpr UBaseType_t WIFI_PROV_PRIORITY{tskIDLE_PRIORITY + 1};
+inline constexpr UBaseType_t BUTTON_TASK_PRIORITY{tskIDLE_PRIORITY + 4};
+inline constexpr UBaseType_t LED_TASK_PRIORITY{tskIDLE_PRIORITY + 1};
 
-constexpr uint16_t SENSOR_TASK_STACK{2048};
-constexpr uint16_t IRRIGATION_TASK_STACK{1024};
-constexpr uint16_t WIFI_PROV_STACK{2048};
-constexpr uint16_t BUTTON_TASK_STACK{768};
-constexpr uint16_t LED_TASK_STACK{768};
+inline constexpr uint16_t SENSOR_TASK_STACK{2048};
+inline constexpr uint16_t IRRIGATION_TASK_STACK{1024};
+inline constexpr uint16_t WIFI_PROV_STACK{2048};
+inline constexpr uint16_t BUTTON_TASK_STACK{768};
+inline constexpr uint16_t LED_TASK_STACK{768};
 
 enum class WifiCommand : uint8_t
 {
@@ -97,7 +119,7 @@ void blinkErrorBlocking(const uint8_t times, const uint32_t onMs = 150, const ui
   }
 }
 
-void blinkErrorRtos(const uint8_t times, const TickType_t onTicks, const TickType_t offTicks)
+void blinkErrorAsync(const uint8_t times, const TickType_t onTicks, const TickType_t offTicks)
 {
   for (uint8_t i = 0; i < times; ++i)
   {
@@ -110,7 +132,7 @@ void blinkErrorRtos(const uint8_t times, const TickType_t onTicks, const TickTyp
 
 void setNetworkLedState(const NetworkLedState state)
 {
-  if (ledStateMutex == nullptr)
+  if (ledStateMutex == nullptr) [[unlikely]]
   {
     return;
   }
@@ -121,7 +143,7 @@ void setNetworkLedState(const NetworkLedState state)
 
 void setErrorLedState(const bool on)
 {
-  if (ledStateMutex == nullptr)
+  if (ledStateMutex == nullptr) [[unlikely]]
   {
     return;
   }
@@ -132,14 +154,13 @@ void setErrorLedState(const bool on)
 
 [[nodiscard]] auto readLedState() -> LedSharedState
 {
-  LedSharedState snapshot{};
-  if (ledStateMutex == nullptr)
+  if (ledStateMutex == nullptr) [[unlikely]]
   {
-    return snapshot;
+    return LedSharedState{};
   }
 
   xSemaphoreTake(ledStateMutex, portMAX_DELAY);
-  snapshot = ledShared;
+  const auto snapshot = ledShared;
   xSemaphoreGive(ledStateMutex);
   return snapshot;
 }
@@ -147,21 +168,19 @@ void setErrorLedState(const bool on)
 void logEnvironment(const SensorData& data)
 {
   printf("  Environment: ");
-  if (data.environment.isValid())
+  if (not data.environment.isValid()) [[unlikely]]
   {
-    printf("Temp=%.1f°C, Humidity=%.1f%%, Pressure=%.1fhPa\n", data.environment.temperature, data.environment.humidity,
-           data.environment.pressure);
+    printf("Unavailable\n");
+    return;
   }
-  else
-  {
-    printf("Environmental sensor not available\n");
-  }
+  printf("Temp=%.1f°C, Humidity=%.1f%%, Pressure=%.1fhPa\n", data.environment.temperature, data.environment.humidity,
+         data.environment.pressure);
 }
 
 void logLight(const SensorData& data)
 {
   printf("  Light: ");
-  if (not data.light.isValid())
+  if (not data.light.isValid()) [[unlikely]]
   {
     printf("Unavailable\n");
     return;
@@ -178,7 +197,7 @@ void logLight(const SensorData& data)
 void logSoil(const SensorData& data)
 {
   printf("  Soil Moisture: ");
-  if (not data.soil.isValid())
+  if (not data.soil.isValid()) [[unlikely]]
   {
     printf("Error\n");
     return;
@@ -293,7 +312,7 @@ void handleButtonRelease(uint32_t heldMs, bool& rebootSent)
 
   printf("[Button] Released after %u ms\n", heldMs);
 
-  if (heldMs >= Config::BUTTON_AP_MIN_MS && heldMs < Config::BUTTON_REBOOT_MS)
+  if (heldMs >= Config::BUTTON_AP_MIN_MS and heldMs < Config::BUTTON_REBOOT_MS)
   {
     const WifiCommand cmd = WifiCommand::START_PROVISIONING;
     if (wifiCommandQueue != nullptr)
@@ -344,7 +363,7 @@ void buttonTask(void* /*params*/)
       pressed = false;
     }
 
-    if (pressed && !rebootSent)
+    if (pressed and not rebootSent)
     {
       handleButtonHold(nowMs() - pressedAt, rebootSent);
     }
@@ -389,7 +408,7 @@ void sensorTask(void* params)
       ctx.loop(now);
     }
 
-    if (now - lastSensorRead >= Config::SENSOR_READ_INTERVAL_MS)
+    if (now - lastSensorRead >= Config::DEFAULT_SENSOR_READ_INTERVAL_MS)
     {
       handleSensorRead(now, sensorManager, irrigationController, ctx);
       lastSensorRead = now;
@@ -462,7 +481,7 @@ void processWifiCommand(WifiCommand cmd, ProvisionContext* ctx, bool& connected,
     case WifiCommand::REBOOT:
     {
       printf("[WiFi] Reboot requested, blinking error LED 3x\n");
-      blinkErrorRtos(3, pdMS_TO_TICKS(200), pdMS_TO_TICKS(200));
+      blinkErrorAsync(3, pdMS_TO_TICKS(200), pdMS_TO_TICKS(200));
       watchdog_reboot(0, 0, 0);
       vTaskDelay(pdMS_TO_TICKS(100));
       break;
@@ -473,7 +492,7 @@ void processWifiCommand(WifiCommand cmd, ProvisionContext* ctx, bool& connected,
 void wifiProvisionTask(void* params)
 {
   auto* ctx = static_cast<ProvisionContext*>(params);
-  if ((ctx == nullptr) or (ctx->provisioner == nullptr) or (ctx->haClient == nullptr))
+  if ((ctx == nullptr) or (ctx->provisioner == nullptr) or (ctx->haClient == nullptr)) [[unlikely]]
   {
     vTaskDelete(nullptr);
   }
@@ -481,7 +500,7 @@ void wifiProvisionTask(void* params)
   setNetworkLedState(NetworkLedState::CONNECTING);
   auto creds = WifiProvisioner::loadStoredCredentials();
 
-  bool connected = ctx->provisioner->connectSta(creds);
+  auto connected = ctx->provisioner->connectSta(creds);
   bool apActive  = false;
   apActiveFlag   = false;
   if (connected)
@@ -524,7 +543,7 @@ void startAppTasks(SensorManager& sensorManager, IrrigationController& irrigatio
 
   ledStateMutex    = xSemaphoreCreateMutex();
   wifiCommandQueue = xQueueCreate(2, sizeof(WifiCommand));
-  if ((ledStateMutex == nullptr) or (wifiCommandQueue == nullptr))
+  if ((ledStateMutex == nullptr) or (wifiCommandQueue == nullptr)) [[unlikely]]
   {
     printf("[AppTasks] Failed to create synchronization primitives\n");
   }
@@ -543,5 +562,6 @@ void startAppTasks(SensorManager& sensorManager, IrrigationController& irrigatio
   xTaskCreate(irrigationTask, "irrigationTask", IRRIGATION_TASK_STACK, &irrigationController, IRRIGATION_TASK_PRIORITY,
               nullptr);
 
+  printf("[AppTasks] Starting FreeRTOS scheduler\n");
   vTaskStartScheduler();
 }

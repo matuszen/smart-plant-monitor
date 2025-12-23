@@ -1,4 +1,3 @@
-#include <Config.h>
 #include <algorithm>
 #include <array>
 #include <bit>
@@ -11,10 +10,13 @@
 #include <span>
 #include <string_view>
 
-#include <cyw43.h>
-#include <cyw43_ll.h>
+#include <FreeRTOS.h>
+#include <projdefs.h>
+#include <task.h>
 
 #include <boards/pico2_w.h>
+#include <cyw43.h>
+#include <cyw43_ll.h>
 #include <hardware/flash.h>
 #include <hardware/regs/addressmap.h>
 #include <hardware/sync.h>
@@ -30,14 +32,15 @@
 #include <sys/select.h>
 
 #include "../libs/inc/dhcpserver.h"
+#include "Config.h"
 #include "WifiProvisioner.h"
 
 namespace
 {
 
-constexpr uint32_t CRED_FLASH_SECTOR_SIZE{FLASH_SECTOR_SIZE};
-constexpr uint32_t CRED_FLASH_MAGIC{0x57'49'46'49};
-constexpr uint32_t WIFI_CONNECT_TIMEOUT_MS{30'000};
+inline constexpr uint32_t CRED_FLASH_SECTOR_SIZE{FLASH_SECTOR_SIZE};
+inline constexpr uint32_t CRED_FLASH_MAGIC{0x57'49'46'49};
+inline constexpr uint32_t WIFI_CONNECT_TIMEOUT_MS{30'000};
 
 struct FlashRecord
 {
@@ -46,7 +49,7 @@ struct FlashRecord
   uint32_t        crc{0};
 };
 
-[[nodiscard]] auto crc32(const void* data, size_t len) -> uint32_t
+[[nodiscard]] auto crc32(const void* data, const size_t len) -> uint32_t
 {
   const auto*              bytes = static_cast<const uint8_t*>(data);
   std::span<const uint8_t> s(bytes, len);
@@ -63,18 +66,18 @@ struct FlashRecord
   return ~crc;
 }
 
-void percentDecode(std::span<char> str)
+void percentDecode(const std::span<char> str)
 {
   size_t r = 0;
   size_t w = 0;
-  while (r < str.size() && str[r] != '\0')
+  while (r < str.size() and str[r] != '\0')
   {
     if (str[r] == '+')
     {
       str[w++] = ' ';
       r++;
     }
-    else if (str[r] == '%' && (r + 2 < str.size()) && std::isxdigit(static_cast<unsigned char>(str[r + 1])) &&
+    else if (str[r] == '%' and (r + 2 < str.size()) and std::isxdigit(static_cast<unsigned char>(str[r + 1])) and
              std::isxdigit(static_cast<unsigned char>(str[r + 2])))
     {
       const std::array<char, 3> hex{
@@ -94,7 +97,8 @@ void percentDecode(std::span<char> str)
   }
 }
 
-[[nodiscard]] auto parseFormField(std::string_view body, std::string_view key, std::span<char> out) -> bool
+[[nodiscard]] auto parseFormField(const std::string_view body, const std::string_view key,
+                                  const std::span<char> out) -> bool
 {
   const auto pos = body.find(key);
   if (pos == std::string_view::npos)
@@ -113,7 +117,7 @@ void percentDecode(std::span<char> str)
   return true;
 }
 
-void sendResponse(int client, const char* body)
+void sendResponse(const int32_t client, const char* body)
 {
   std::array<char, 256> header{};
   const auto            len =
@@ -134,10 +138,10 @@ constexpr const auto* FORM_PAGE = "<html><body><h3>Smart Plant Monitor Wi-Fi Set
 constexpr const auto* SUCCESS_RESPONSE_PAGE =
   "<html><body><h3>Credentials saved. Device will connect and reboot.</h3></body></html>";
 
-bool handleClientRequest(int client, WifiCredentials& creds)
+auto handleClientRequest(const int32_t client, WifiCredentials& creds) -> bool
 {
   std::array<char, 512> buf{};
-  const int             len = lwip_recv(client, buf.data(), buf.size() - 1, 0);
+  const auto            len = lwip_recv(client, buf.data(), buf.size() - 1, 0);
   if (len <= 0)
   {
     return false;
@@ -146,13 +150,13 @@ bool handleClientRequest(int client, WifiCredentials& creds)
 
   if (std::strncmp(buf.data(), "POST", 4) == 0)
   {
-    const char* bodyPtr = std::strstr(buf.data(), "\r\n\r\n");
+    const auto* bodyPtr = std::strstr(buf.data(), "\r\n\r\n");
     if (bodyPtr != nullptr)
     {
-      std::string_view body = std::string_view(bodyPtr).substr(4);
+      const auto body = std::string_view(bodyPtr).substr(4);
 
-      const bool ssidParsed = parseFormField(body, "ssid=", std::span(creds.ssid));
-      const bool passParsed = parseFormField(body, "pass=", std::span(creds.pass));
+      const auto ssidParsed = parseFormField(body, "ssid=", std::span(creds.ssid));
+      const auto passParsed = parseFormField(body, "pass=", std::span(creds.pass));
       creds.valid           = ssidParsed and (creds.ssid[0] != '\0');
       if (not passParsed)
       {
@@ -182,7 +186,7 @@ auto WifiProvisioner::init() -> bool
     return true;
   }
 
-  if (cyw43_arch_init())
+  if (cyw43_arch_init() != 0) [[unlikely]]
   {
     printf("[WiFi] cyw43_arch_init failed\n");
     return false;
@@ -206,8 +210,8 @@ auto WifiProvisioner::loadStoredCredentials() -> WifiCredentials
     return creds;
   }
 
-  const uint32_t computed = crc32(&record.creds, sizeof(WifiCredentials));
-  if (computed != record.crc)
+  const auto computed = crc32(&record.creds, sizeof(WifiCredentials));
+  if (computed != record.crc) [[unlikely]]
   {
     return creds;
   }
@@ -227,25 +231,25 @@ void WifiProvisioner::storeCredentials(const WifiCredentials& creds)
   static_assert(sizeof(FlashRecord) <= CRED_FLASH_SECTOR_SIZE, "FlashRecord must fit within a single flash sector");
 
   std::array<uint8_t, CRED_FLASH_SECTOR_SIZE> page{};
-  std::fill(page.begin(), page.end(), 0xFF);
+  std::ranges::fill(page, 0xFF);
   std::memcpy(page.data(), &record, sizeof(record));
 
-  const uint32_t addr = flashStorageOffset();
-  const uint32_t ints = save_and_disable_interrupts();
+  const auto addr = flashStorageOffset();
+  const auto ints = save_and_disable_interrupts();
   flash_range_erase(addr, CRED_FLASH_SECTOR_SIZE);
   flash_range_program(addr, page.data(), page.size());
   restore_interrupts(ints);
 }
 
-bool WifiProvisioner::connectSta(const WifiCredentials& creds)
+auto WifiProvisioner::connectSta(const WifiCredentials& creds) -> bool
 {
-  if (not creds.valid)
+  if (not creds.valid) [[unlikely]]
   {
     connected_ = false;
     return false;
   }
 
-  if (not init())
+  if (not init()) [[unlikely]]
   {
     connected_ = false;
     return false;
@@ -255,11 +259,11 @@ bool WifiProvisioner::connectSta(const WifiCredentials& creds)
 
   provisioning_ = false;
   printf("[WiFi] Connecting to SSID '%s'...\n", creds.ssid.data());
-  const int res = cyw43_arch_wifi_connect_timeout_ms(creds.ssid.data(), creds.pass.data(), CYW43_AUTH_WPA2_AES_PSK,
-                                                     WIFI_CONNECT_TIMEOUT_MS);
-  if (res != 0)
+  const auto response = cyw43_arch_wifi_connect_timeout_ms(creds.ssid.data(), creds.pass.data(),
+                                                           CYW43_AUTH_WPA2_AES_PSK, WIFI_CONNECT_TIMEOUT_MS);
+  if (response != 0) [[unlikely]]
   {
-    printf("[WiFi] Connection failed (%d)\n", res);
+    printf("[WiFi] Connection failed (%d)\n", response);
     connected_ = false;
     return false;
   }
@@ -312,12 +316,12 @@ auto WifiProvisioner::startApAndServe(const uint32_t             timeoutMs,
   lwip_bind(server, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr));
   lwip_listen(server, 2);
 
-  const uint32_t startMs = to_ms_since_boot(get_absolute_time());
+  const auto startMs = to_ms_since_boot(get_absolute_time());
 
   while (true)
   {
-    const uint32_t nowMs = to_ms_since_boot(get_absolute_time());
-    if ((timeoutMs > 0U) and (nowMs - startMs >= timeoutMs))
+    const auto nowMs = to_ms_since_boot(get_absolute_time());
+    if ((timeoutMs > 0U) and (nowMs - startMs >= timeoutMs)) [[unlikely]]
     {
       printf("[WiFi] AP timeout reached, stopping provisioning\n");
       break;
@@ -338,6 +342,7 @@ auto WifiProvisioner::startApAndServe(const uint32_t             timeoutMs,
     const int sel = lwip_select(server + 1, &readSet, nullptr, nullptr, &tv);
     if (sel <= 0)
     {
+      vTaskDelay(pdMS_TO_TICKS(10));
       continue;
     }
     if (!FD_ISSET(server, &readSet))

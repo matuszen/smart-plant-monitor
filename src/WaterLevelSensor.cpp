@@ -21,7 +21,7 @@ auto WaterLevelSensor::init() -> bool
   {
     return true;
   }
-  if (i2c_ == nullptr)
+  if (i2c_ == nullptr) [[unlikely]]
   {
     printf("[WaterLevelSensor] ERROR: Missing I2C instance\n");
     return false;
@@ -32,7 +32,7 @@ auto WaterLevelSensor::init() -> bool
 
 auto WaterLevelSensor::read() -> std::optional<WaterLevelData>
 {
-  if (not initialized_ and not init())
+  if (not initialized_ and not init()) [[unlikely]]
   {
     return std::nullopt;
   }
@@ -42,7 +42,7 @@ auto WaterLevelSensor::read() -> std::optional<WaterLevelData>
   const auto retLow  = i2c_read_blocking(i2c_, lowAddress_, sensorData.data(), LOW_SECTIONS, false);
   const auto retHigh = i2c_read_blocking(i2c_, highAddress_, &sensorData[LOW_SECTIONS], HIGH_SECTIONS, false);
 
-  if ((retLow < 0) and (retHigh < 0))
+  if ((retLow < 0) and (retHigh < 0)) [[unlikely]]
   {
     printf("[WaterLevelSensor] I2C error: sensor did not respond\n");
     return std::nullopt;

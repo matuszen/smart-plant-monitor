@@ -34,49 +34,56 @@ namespace
 HomeAssistantClient::HomeAssistantClient(SensorManager* sensorManager, IrrigationController* irrigationController)
   : sensorManager_(sensorManager), irrigationController_(irrigationController)
 {
+  if constexpr (not Config::ENABLE_HOME_ASSISTANT)
+  {
+    return;
+  }
   const auto baseLen = std::strlen(Config::HA_BASE_TOPIC);
   auto       result  = std::snprintf(availabilityTopic_.data(), availabilityTopic_.size(), "%.*s/availability",
                                      static_cast<int>(baseLen), Config::HA_BASE_TOPIC);
-  if (result < 0 or static_cast<size_t>(result) >= availabilityTopic_.size())
+  if (result < 0 or static_cast<size_t>(result) >= availabilityTopic_.size()) [[unlikely]]
   {
-    printf("[HA] ERROR: Availability topic snprintf failed or truncated\n");
+    printf("[HomeAssistant] ERROR: Availability topic snprintf failed or truncated\n");
   }
   result = std::snprintf(stateTopic_.data(), stateTopic_.size(), "%.*s/state", static_cast<int>(baseLen),
                          Config::HA_BASE_TOPIC);
-  if (result < 0 or static_cast<size_t>(result) >= stateTopic_.size())
+  if (result < 0 or static_cast<size_t>(result) >= stateTopic_.size()) [[unlikely]]
   {
-    printf("[HA] ERROR: State topic snprintf failed or truncated\n");
+    printf("[HomeAssistant] ERROR: State topic snprintf failed or truncated\n");
   }
   result = std::snprintf(commandTopic_.data(), commandTopic_.size(), "%.*s/command", static_cast<int>(baseLen),
                          Config::HA_BASE_TOPIC);
-  if (result < 0 or static_cast<size_t>(result) >= commandTopic_.size())
+  if (result < 0 or static_cast<size_t>(result) >= commandTopic_.size()) [[unlikely]]
   {
-    printf("[HA] ERROR: Command topic snprintf failed or truncated\n");
+    printf("[HomeAssistant] ERROR: Command topic snprintf failed or truncated\n");
   }
 }
 
 HomeAssistantClient::~HomeAssistantClient()
 {
-  if (Config::ENABLE_HOME_ASSISTANT and ownsCyw43_)
+  if constexpr (Config::ENABLE_HOME_ASSISTANT)
   {
-    cyw43_arch_deinit();
+    if (ownsCyw43_)
+    {
+      cyw43_arch_deinit();
+    }
   }
 }
 
 auto HomeAssistantClient::init() -> bool
 {
-  if (not Config::ENABLE_HOME_ASSISTANT)
+  if constexpr (not Config::ENABLE_HOME_ASSISTANT)
   {
     return true;
   }
 
-  printf("[HA] Initializing Wi-Fi and MQTT integration...\n");
+  printf("[HomeAssistant] Initializing Wi-Fi and MQTT integration...\n");
 
   if (not wifiReady_)
   {
-    if (cyw43_arch_init() != 0)
+    if (cyw43_arch_init() != 0) [[unlikely]]
     {
-      printf("[HA] ERROR: cyw43_arch_init failed\n");
+      printf("[HomeAssistant] ERROR: cyw43_arch_init failed\n");
       return false;
     }
     cyw43_arch_enable_sta_mode();
@@ -85,32 +92,32 @@ auto HomeAssistantClient::init() -> bool
 
   if (wifiReady_)
   {
-    printf("[HA] Wi-Fi already provisioned\n");
+    printf("[HomeAssistant] Wi-Fi already provisioned\n");
   }
   else
   {
-    printf("[HA] ERROR: Wi-Fi not provisioned\n");
+    printf("[HomeAssistant] ERROR: Wi-Fi not provisioned\n");
     return false;
   }
 
   wifiReady_  = true;
   mqttClient_ = mqtt_client_new();
-  if (mqttClient_ == nullptr)
+  if (mqttClient_ == nullptr) [[unlikely]]
   {
-    printf("[HA] ERROR: mqtt_client_new failed\n");
+    printf("[HomeAssistant] ERROR: mqtt_client_new failed\n");
     return false;
   }
 
   mqtt_set_inpub_callback(mqttClient_, HomeAssistantClient::mqttIncomingPublishCb,
                           HomeAssistantClient::mqttIncomingDataCb, this);
 
-  printf("[HA] Wi-Fi connected, MQTT client ready\n");
+  printf("[HomeAssistant] Wi-Fi connected, MQTT client ready\n");
   return true;
 }
 
 void HomeAssistantClient::pollWiFi()
 {
-  if (Config::ENABLE_HOME_ASSISTANT)
+  if constexpr (Config::ENABLE_HOME_ASSISTANT)
   {
     cyw43_arch_poll();
   }
@@ -118,7 +125,7 @@ void HomeAssistantClient::pollWiFi()
 
 void HomeAssistantClient::loop(const uint32_t nowMs)
 {
-  if (not Config::ENABLE_HOME_ASSISTANT)
+  if constexpr (not Config::ENABLE_HOME_ASSISTANT)
   {
     return;
   }
@@ -130,7 +137,7 @@ void HomeAssistantClient::loop(const uint32_t nowMs)
 void HomeAssistantClient::publishSensorState(const uint32_t nowMs, const SensorData& data, const bool watering,
                                              const bool force)
 {
-  if (not Config::ENABLE_HOME_ASSISTANT)
+  if constexpr (not Config::ENABLE_HOME_ASSISTANT)
   {
     return;
   }
@@ -138,7 +145,7 @@ void HomeAssistantClient::publishSensorState(const uint32_t nowMs, const SensorD
   lastData_ = data;
   hasData_  = true;
 
-  if (not mqttConnected_)
+  if (not mqttConnected_) [[unlikely]]
   {
     return;
   }
@@ -154,7 +161,7 @@ void HomeAssistantClient::publishSensorState(const uint32_t nowMs, const SensorD
   const float           lightLux         = isLightDataValid ? data.light.lux : 0.0F;
   const float           waterPct         = isWaterDataValid ? data.water.percentage : 0.0F;
 
-  const int payloadLen = std::snprintf(
+  const auto payloadLen = std::snprintf(
     payload.data(), payload.size(),
     "{\"temperature\":%.2f,\"humidity\":%.2f,\"pressure\":%.2f,"
     "\"soil_moisture\":%.2f,\"light_lux\":%.2f,\"light_available\":%s,"
@@ -164,15 +171,15 @@ void HomeAssistantClient::publishSensorState(const uint32_t nowMs, const SensorD
 
   if (payloadLen < 0 or static_cast<size_t>(payloadLen) >= payload.size())
   {
-    printf("[HA] mqtt_publish skipped (payload truncated)\n");
+    printf("[HomeAssistant] mqtt_publish skipped (payload truncated)\n");
     return;
   }
 
-  const err_t err = mqtt_publish(mqttClient_, stateTopic_.data(), payload.data(), static_cast<uint16_t>(payloadLen), 0,
-                                 1, nullptr, nullptr);
-  if (err != ERR_OK)
+  const auto error = mqtt_publish(mqttClient_, stateTopic_.data(), payload.data(), static_cast<uint16_t>(payloadLen), 0,
+                                  1, nullptr, nullptr);
+  if (error != ERR_OK) [[unlikely]]
   {
-    printf("[HA] mqtt_publish failed (%d)\n", err);
+    printf("[HomeAssistant] mqtt_publish failed (%d)\n", error);
     return;
   }
 
@@ -204,7 +211,7 @@ void HomeAssistantClient::ensureMqtt(const uint32_t nowMs)
 
   if (not brokerIpValid_ and not resolveBrokerIp())
   {
-    printf("[HA] Waiting for broker DNS resolution...\n");
+    printf("[HomeAssistant] Waiting for broker DNS resolution...\n");
     return;
   }
 
@@ -218,14 +225,14 @@ void HomeAssistantClient::connectMqtt()
   info.client_user = hasValue(Config::MQTT_USERNAME) ? Config::MQTT_USERNAME : nullptr;
   info.client_pass = hasValue(Config::MQTT_PASSWORD) ? Config::MQTT_PASSWORD : nullptr;
 
-  printf("[HA] Connecting to MQTT broker %s:%u...\n", Config::MQTT_BROKER_HOST,
+  printf("[HomeAssistant] Connecting to MQTT broker %s:%u...\n", Config::MQTT_BROKER_HOST,
          static_cast<unsigned>(Config::MQTT_BROKER_PORT));
 
-  const err_t err = mqtt_client_connect(mqttClient_, &brokerIp_, Config::MQTT_BROKER_PORT,
-                                        HomeAssistantClient::mqttConnectionCb, this, &info);
-  if (err != ERR_OK)
+  const auto error = mqtt_client_connect(mqttClient_, &brokerIp_, Config::MQTT_BROKER_PORT,
+                                         HomeAssistantClient::mqttConnectionCb, this, &info);
+  if (error != ERR_OK) [[unlikely]]
   {
-    printf("[HA] mqtt_connect failed (%d)\n", err);
+    printf("[HomeAssistant] mqtt_connect failed (%d)\n", error);
   }
 }
 
@@ -257,7 +264,7 @@ void HomeAssistantClient::publishAvailability(const bool online)
     return;
   }
 
-  const char* payload = online ? "online" : "offline";
+  const auto* payload = online ? "online" : "offline";
   mqtt_publish(mqttClient_, availabilityTopic_.data(), payload, static_cast<uint16_t>(std::strlen(payload)), 1, 1,
                nullptr, nullptr);
 }
@@ -271,7 +278,7 @@ void HomeAssistantClient::publishSensorDiscovery(const char* component, const ch
                                      Config::HA_DISCOVERY_PREFIX, component, objectId);
   if (topicLen < 0 or static_cast<size_t>(topicLen) >= topic.size())
   {
-    printf("[HA] Discovery topic truncated, skipping\n");
+    printf("[HomeAssistant] Discovery topic truncated, skipping\n");
     return;
   }
 
@@ -322,7 +329,7 @@ void HomeAssistantClient::publishSwitchDiscovery()
                                                  Config::HA_DISCOVERY_PREFIX, Config::DEVICE_IDENTIFIER);
   if (topicLen < 0 or static_cast<size_t>(topicLen) >= topic.size())
   {
-    printf("[HA] Switch discovery topic truncated, skipping\n");
+    printf("[HomeAssistant] Switch discovery topic truncated, skipping\n");
     return;
   }
 
@@ -360,7 +367,7 @@ void HomeAssistantClient::handleCommand(const char* payload)
     return;
   }
 
-  printf("[HA] Command received: %s\n", payload);
+  printf("[HomeAssistant] Command received: %s\n", payload);
 
   if (std::strcmp(payload, "ON") == 0)
   {
@@ -387,15 +394,15 @@ void HomeAssistantClient::mqttConnectionCb(mqtt_client_t* client, void* arg, mqt
 {
   (void)client;
   auto* self = static_cast<HomeAssistantClient*>(arg);
-  if (status != MQTT_CONNECT_ACCEPTED)
+  if (status != MQTT_CONNECT_ACCEPTED) [[unlikely]]
   {
     self->mqttConnected_      = false;
     self->discoveryPublished_ = false;
-    printf("[HA] MQTT connection failed (%d)\n", status);
+    printf("[HomeAssistant] MQTT connection failed (%d)\n", status);
     return;
   }
 
-  printf("[HA] MQTT connected\n");
+  printf("[HomeAssistant] MQTT connected\n");
   self->mqttConnected_ = true;
   self->publishAvailability(true);
   self->publishDiscovery();
@@ -454,7 +461,7 @@ auto HomeAssistantClient::resolveBrokerIp() -> bool
     return false;
   }
 
-  printf("[HA] DNS lookup failed (%d)\n", err);
+  printf("[HomeAssistant] DNS lookup failed (%d)\n", err);
   return false;
 }
 
@@ -466,9 +473,9 @@ void HomeAssistantClient::dnsFoundCb(const char* /*name*/, const ip_addr_t* ipad
 
 void HomeAssistantClient::handleDnsResult(const ip_addr_t* result)
 {
-  if (result == nullptr)
+  if (result == nullptr) [[unlikely]]
   {
-    printf("[HA] DNS resolution returned null\n");
+    printf("[HomeAssistant] DNS resolution returned null\n");
     brokerIpValid_ = false;
     return;
   }
@@ -477,5 +484,5 @@ void HomeAssistantClient::handleDnsResult(const ip_addr_t* result)
   brokerIpValid_ = true;
   std::array<char, 16> ipStr{};
   ip4addr_ntoa_r(ip_2_ip4(&brokerIp_), ipStr.data(), ipStr.size());
-  printf("[HA] Broker resolved to %s\n", ipStr.data());
+  printf("[HomeAssistant] Broker resolved to %s\n", ipStr.data());
 }

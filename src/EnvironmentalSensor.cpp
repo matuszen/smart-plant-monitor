@@ -37,23 +37,23 @@ auto EnvironmentalSensor::init() -> bool
     return true;
   }
 
-  if (i2c_ == nullptr)
+  if (i2c_ == nullptr) [[unlikely]]
   {
     printf("[BME280] ERROR: Missing I2C instance\n");
     return false;
   }
 
   uint8_t id{};
-  if (not readRegs(REG_ID, &id, 1) or id != CHIP_ID)
+  if (not readRegs(REG_ID, &id, 1) or id != CHIP_ID) [[unlikely]]
   {
-    printf("[BME280] Not detected (ID=0x%02X)\n", id);
+    printf("[BME280] Sensor not detected (ID=0x%02X)\n", id);
     return false;
   }
 
   writeReg(REG_RESET, 0xB6);
   sleep_ms(100);
 
-  if (not readCalibrationData())
+  if (not readCalibrationData()) [[unlikely]]
   {
     printf("[BME280] Failed to read calibration data\n");
     return false;
@@ -70,13 +70,13 @@ auto EnvironmentalSensor::init() -> bool
 
 auto EnvironmentalSensor::read() -> std::optional<EnvironmentData>
 {
-  if (not initialized_ and not init())
+  if (not initialized_ and not init()) [[unlikely]]
   {
     return std::nullopt;
   }
 
   std::array<uint8_t, 8> data{};
-  if (not readRegs(REG_PRESS_MSB, data.data(), data.size()))
+  if (not readRegs(REG_PRESS_MSB, data.data(), data.size())) [[unlikely]]
   {
     printf("[BME280] Read failed\n");
     initialized_ = false;
@@ -108,7 +108,7 @@ auto EnvironmentalSensor::writeReg(const uint8_t reg, const uint8_t value) -> bo
 
 auto EnvironmentalSensor::readRegs(const uint8_t reg, uint8_t* const buf, const size_t len) -> bool
 {
-  if (i2c_write_blocking(i2c_, address_, &reg, 1, true) != 1)
+  if (i2c_write_blocking(i2c_, address_, &reg, 1, true) != 1) [[unlikely]]
   {
     return false;
   }
@@ -118,7 +118,7 @@ auto EnvironmentalSensor::readRegs(const uint8_t reg, uint8_t* const buf, const 
 auto EnvironmentalSensor::readCalibrationData() -> bool
 {
   std::array<uint8_t, 26> buf{};
-  if (not readRegs(REG_CALIB_00, buf.data(), 24))
+  if (not readRegs(REG_CALIB_00, buf.data(), 24)) [[unlikely]]
   {
     return false;
   }
@@ -137,13 +137,13 @@ auto EnvironmentalSensor::readCalibrationData() -> bool
   calib_.dig_P9 = static_cast<int16_t>((buf[23] << 8) | buf[22]);
 
   uint8_t h1{};
-  if (not readRegs(0xA1, &h1, 1))
+  if (not readRegs(0xA1, &h1, 1)) [[unlikely]]
   {
     return false;
   }
   calib_.dig_H1 = h1;
 
-  if (not readRegs(REG_CALIB_26, buf.data(), 7))
+  if (not readRegs(REG_CALIB_26, buf.data(), 7)) [[unlikely]]
   {
     return false;
   }
@@ -153,7 +153,6 @@ auto EnvironmentalSensor::readCalibrationData() -> bool
   calib_.dig_H4 = static_cast<int16_t>((buf[3] << 4) | (buf[4] & 0x0F));
   calib_.dig_H5 = static_cast<int16_t>((buf[5] << 4) | (buf[4] >> 4));
   calib_.dig_H6 = static_cast<int8_t>(buf[6]);
-
   return true;
 }
 

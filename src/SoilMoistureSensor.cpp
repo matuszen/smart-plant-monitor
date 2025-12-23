@@ -36,7 +36,7 @@ auto SoilMoistureSensor::init() -> bool
 
 auto SoilMoistureSensor::read() -> std::optional<SoilMoistureData>
 {
-  if (not initialized_ and not init())
+  if (not initialized_ and not init()) [[unlikely]]
   {
     return std::nullopt;
   }
