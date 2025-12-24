@@ -1,9 +1,9 @@
 #include <array>
 #include <cstdint>
 #include <cstdio>
+#include <optional>
 
 #include <hardware/i2c.h>
-#include <optional>
 #include <pico/time.h>
 
 #include "LightSensor.h"

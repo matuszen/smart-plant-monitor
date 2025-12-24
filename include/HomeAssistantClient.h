@@ -49,10 +49,9 @@ public:
   }
 
 private:
-  static void pollWiFi();
-  void        ensureMqtt(uint32_t nowMs);
-  void        publishDiscovery();
-  void        publishAvailability(bool online);
+  void ensureMqtt(uint32_t nowMs);
+  void publishDiscovery();
+  void publishAvailability(bool online);
   void publishSensorDiscovery(const char* component, const char* objectId, const char* name, const char* valueTemplate,
                               const char* unit, const char* deviceClass = nullptr);
   void publishSwitchDiscovery();
@@ -76,12 +75,12 @@ private:
   ip_addr_t      brokerIp_{};
   bool           brokerIpValid_{false};
   bool           wifiReady_{false};
-  bool           ownsCyw43_{false};
   bool           mqttConnected_{false};
   bool           discoveryPublished_{false};
 
   uint32_t lastMqttAttempt_{0};
   uint32_t lastPublish_{0};
+  uint32_t mqttBackoffMultiplier_{1};
 
   SensorData lastData_{};
   bool       hasData_{false};

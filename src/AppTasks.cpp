@@ -1,25 +1,28 @@
-#include <HomeAssistantClient.h>
-#include <IrrigationController.h>
-#include <SensorManager.h>
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 
-#include "portmacrocommon.h"
-#include "projdefs.h"
 #include <FreeRTOS.h>
+#include <projdefs.h>
 #include <queue.h>
 #include <task.h>
 
 #include <hardware/gpio.h>
 #include <hardware/watchdog.h>
+#include <pico/cyw43_arch.h>
 #include <pico/platform/panic.h>
 #include <pico/stdlib.h>
 #include <pico/time.h>
 
 #include "AppTasks.h"
 #include "Config.h"
+#include "HomeAssistantClient.h"
+#include "IrrigationController.h"
+#include "SensorManager.h"
 #include "Types.h"
 #include "WifiProvisioner.h"
+
+#include "portmacrocommon.h"
 
 extern "C"
 {
@@ -456,19 +459,19 @@ void processWifiCommand(WifiCommand cmd, ProvisionContext* ctx, bool& connected,
       apActiveFlag = true;
 
       auto newCreds = ctx->provisioner->startApAndServe(Config::AP_SESSION_TIMEOUT_MS, &apCancelFlag);
+      printf("[WiFi] Provisioning task returned (valid=%d)\n", newCreds.valid ? 1 : 0);
 
       apActive     = false;
       apActiveFlag = false;
 
       if (newCreds.valid)
       {
+        printf("[WiFi] Provisioning done, saving credentials and rebooting...\n");
         WifiProvisioner::storeCredentials(newCreds);
-        connected = ctx->provisioner->connectSta(newCreds);
-        ctx->haClient->setWifiReady(connected);
-        if constexpr (Config::ENABLE_HOME_ASSISTANT)
-        {
-          ctx->haClient->init();
-        }
+        printf("[WiFi] Credentials saved, rebooting...\n");
+        blinkErrorAsync(3, pdMS_TO_TICKS(200), pdMS_TO_TICKS(200));
+        watchdog_reboot(0, 0, 0);
+        vTaskDelay(pdMS_TO_TICKS(1000));
       }
       else
       {
@@ -498,11 +501,22 @@ void wifiProvisionTask(void* params)
   }
 
   setNetworkLedState(NetworkLedState::CONNECTING);
-  auto creds = WifiProvisioner::loadStoredCredentials();
+  auto credsList = WifiProvisioner::loadStoredCredentials();
+  bool connected = false;
 
-  auto connected = ctx->provisioner->connectSta(creds);
-  bool apActive  = false;
-  apActiveFlag   = false;
+  for (size_t i = credsList.size(); i-- > 0;)
+  {
+    if (credsList[i].valid)
+    {
+      if (ctx->provisioner->connectSta(credsList[i]))
+      {
+        connected = true;
+        break;
+      }
+    }
+  }
+  bool apActive = false;
+  apActiveFlag  = false;
   if (connected)
   {
     ctx->haClient->setWifiReady(true);

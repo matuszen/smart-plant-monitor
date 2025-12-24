@@ -1,4 +1,4 @@
-
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <cstdio>
@@ -38,6 +38,7 @@ HomeAssistantClient::HomeAssistantClient(SensorManager* sensorManager, Irrigatio
   {
     return;
   }
+
   const auto baseLen = std::strlen(Config::HA_BASE_TOPIC);
   auto       result  = std::snprintf(availabilityTopic_.data(), availabilityTopic_.size(), "%.*s/availability",
                                      static_cast<int>(baseLen), Config::HA_BASE_TOPIC);
@@ -61,13 +62,6 @@ HomeAssistantClient::HomeAssistantClient(SensorManager* sensorManager, Irrigatio
 
 HomeAssistantClient::~HomeAssistantClient()
 {
-  if constexpr (Config::ENABLE_HOME_ASSISTANT)
-  {
-    if (ownsCyw43_)
-    {
-      cyw43_arch_deinit();
-    }
-  }
 }
 
 auto HomeAssistantClient::init() -> bool
@@ -77,30 +71,14 @@ auto HomeAssistantClient::init() -> bool
     return true;
   }
 
-  printf("[HomeAssistant] Initializing Wi-Fi and MQTT integration...\n");
+  printf("[HomeAssistant] Initializing MQTT integration...\n");
 
   if (not wifiReady_)
   {
-    if (cyw43_arch_init() != 0) [[unlikely]]
-    {
-      printf("[HomeAssistant] ERROR: cyw43_arch_init failed\n");
-      return false;
-    }
-    cyw43_arch_enable_sta_mode();
-    ownsCyw43_ = true;
-  }
-
-  if (wifiReady_)
-  {
-    printf("[HomeAssistant] Wi-Fi already provisioned\n");
-  }
-  else
-  {
-    printf("[HomeAssistant] ERROR: Wi-Fi not provisioned\n");
+    printf("[HomeAssistant] Waiting for Wi-Fi...\n");
     return false;
   }
 
-  wifiReady_  = true;
   mqttClient_ = mqtt_client_new();
   if (mqttClient_ == nullptr) [[unlikely]]
   {
@@ -111,16 +89,8 @@ auto HomeAssistantClient::init() -> bool
   mqtt_set_inpub_callback(mqttClient_, HomeAssistantClient::mqttIncomingPublishCb,
                           HomeAssistantClient::mqttIncomingDataCb, this);
 
-  printf("[HomeAssistant] Wi-Fi connected, MQTT client ready\n");
+  printf("[HomeAssistant] MQTT client ready\n");
   return true;
-}
-
-void HomeAssistantClient::pollWiFi()
-{
-  if constexpr (Config::ENABLE_HOME_ASSISTANT)
-  {
-    cyw43_arch_poll();
-  }
 }
 
 void HomeAssistantClient::loop(const uint32_t nowMs)
@@ -130,7 +100,6 @@ void HomeAssistantClient::loop(const uint32_t nowMs)
     return;
   }
 
-  pollWiFi();
   ensureMqtt(nowMs);
 }
 
@@ -202,7 +171,7 @@ void HomeAssistantClient::ensureMqtt(const uint32_t nowMs)
   mqttConnected_      = false;
   discoveryPublished_ = false;
 
-  if ((nowMs - lastMqttAttempt_) < Config::HA_RECONNECT_INTERVAL_MS)
+  if ((nowMs - lastMqttAttempt_) < (Config::HA_RECONNECT_INTERVAL_MS * mqttBackoffMultiplier_))
   {
     return;
   }
@@ -212,6 +181,7 @@ void HomeAssistantClient::ensureMqtt(const uint32_t nowMs)
   if (not brokerIpValid_ and not resolveBrokerIp())
   {
     printf("[HomeAssistant] Waiting for broker DNS resolution...\n");
+    mqttBackoffMultiplier_ = std::min(mqttBackoffMultiplier_ * 2, static_cast<uint32_t>(12));
     return;
   }
 
@@ -233,6 +203,7 @@ void HomeAssistantClient::connectMqtt()
   if (error != ERR_OK) [[unlikely]]
   {
     printf("[HomeAssistant] mqtt_connect failed (%d)\n", error);
+    mqttBackoffMultiplier_ = std::min(mqttBackoffMultiplier_ * 2, static_cast<uint32_t>(12));
   }
 }
 
@@ -396,14 +367,16 @@ void HomeAssistantClient::mqttConnectionCb(mqtt_client_t* client, void* arg, mqt
   auto* self = static_cast<HomeAssistantClient*>(arg);
   if (status != MQTT_CONNECT_ACCEPTED) [[unlikely]]
   {
-    self->mqttConnected_      = false;
-    self->discoveryPublished_ = false;
+    self->mqttConnected_         = false;
+    self->discoveryPublished_    = false;
+    self->mqttBackoffMultiplier_ = std::min(self->mqttBackoffMultiplier_ * 2, static_cast<uint32_t>(12));
     printf("[HomeAssistant] MQTT connection failed (%d)\n", status);
     return;
   }
 
   printf("[HomeAssistant] MQTT connected\n");
-  self->mqttConnected_ = true;
+  self->mqttConnected_         = true;
+  self->mqttBackoffMultiplier_ = 1;
   self->publishAvailability(true);
   self->publishDiscovery();
   self->subscribeToCommands();

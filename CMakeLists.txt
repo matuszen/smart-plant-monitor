@@ -49,6 +49,7 @@ set(SOURCES
     src/SoilMoistureSensor.cpp
     src/AppTasks.cpp
     src/WifiProvisioner.cpp
+    src/FlashManager.cpp
     libs/src/dhcpserver.c
 )
 
@@ -62,6 +63,7 @@ target_link_libraries(smart_plant_monitor
     hardware_i2c
     hardware_gpio
     hardware_pwm
+    pico_multicore
     FreeRTOS-Kernel
     FreeRTOS-Kernel-Heap4
     freertos_config

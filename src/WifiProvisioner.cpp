@@ -7,6 +7,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <memory>
 #include <span>
 #include <string_view>
 
@@ -23,6 +24,7 @@
 #include <lwip/ip4_addr.h>
 #include <lwip/netif.h>
 #include <pico/cyw43_arch.h>
+#include <pico/flash.h>
 #include <pico/time.h>
 
 #include <lwip/def.h>
@@ -33,6 +35,7 @@
 
 #include "../libs/inc/dhcpserver.h"
 #include "Config.h"
+#include "FlashManager.h"
 #include "WifiProvisioner.h"
 
 namespace
@@ -41,23 +44,24 @@ namespace
 inline constexpr uint32_t CRED_FLASH_SECTOR_SIZE{FLASH_SECTOR_SIZE};
 inline constexpr uint32_t CRED_FLASH_MAGIC{0x57'49'46'49};
 inline constexpr uint32_t WIFI_CONNECT_TIMEOUT_MS{30'000};
+inline constexpr size_t   MAX_SAVED_NETWORKS{10};
 
 struct FlashRecord
 {
-  uint32_t        magic{CRED_FLASH_MAGIC};
-  WifiCredentials creds{};
-  uint32_t        crc{0};
+  uint32_t                                        magic{CRED_FLASH_MAGIC};
+  std::array<WifiCredentials, MAX_SAVED_NETWORKS> creds{};
+  uint32_t                                        crc{0};
 };
 
 [[nodiscard]] auto crc32(const void* data, const size_t len) -> uint32_t
 {
   const auto*              bytes = static_cast<const uint8_t*>(data);
   std::span<const uint8_t> s(bytes, len);
-  uint32_t                 crc = 0xFFFFFFFF;
+  uint32_t                 crc = 0xFFFFFFFFU;
   for (const auto byte : s)
   {
     crc ^= byte;
-    for (int j = 0; j < 8; ++j)
+    for (int32_t j = 0; j < 8; ++j)
     {
       const auto mask = -(crc & 1U);
       crc             = (crc >> 1U) ^ (0xEDB88320U & mask);
@@ -101,7 +105,7 @@ void percentDecode(const std::span<char> str)
                                   const std::span<char> out) -> bool
 {
   const auto pos = body.find(key);
-  if (pos == std::string_view::npos)
+  if (pos == std::string_view::npos) [[unlikely]]
   {
     return false;
   }
@@ -140,13 +144,46 @@ constexpr const auto* SUCCESS_RESPONSE_PAGE =
 
 auto handleClientRequest(const int32_t client, WifiCredentials& creds) -> bool
 {
-  std::array<char, 512> buf{};
-  const auto            len = lwip_recv(client, buf.data(), buf.size() - 1, 0);
-  if (len <= 0)
+  std::array<char, 2048> buf{};
+  int32_t                totalLength = 0;
+
+  for (int32_t i = 0; i < 5; ++i)
+  {
+    const auto len = lwip_recv(client, buf.data() + totalLength, buf.size() - 1 - totalLength, 0);
+    if (len <= 0)
+    {
+      break;
+    }
+    totalLength                              += len;
+    buf.at(static_cast<size_t>(totalLength))  = '\0';
+
+    // If we have double CRLF, we might have the full request or at least headers
+    if (std::strstr(buf.data(), "\r\n\r\n") != nullptr)
+    {
+      // If it's POST, check if we have some body content
+      if (std::strncmp(buf.data(), "POST", 4) == 0)
+      {
+        const auto* bodyPtr = std::strstr(buf.data(), "\r\n\r\n");
+        if (std::strlen(bodyPtr + 4) > 0)
+        {
+          break;  // We have headers and some body
+        }
+        // If body is empty, maybe it's coming in next packet, continue reading
+        vTaskDelay(pdMS_TO_TICKS(10));
+      }
+      else
+      {
+        break;  // GET request, headers are enough
+      }
+    }
+  }
+
+  if (totalLength <= 0)
   {
     return false;
   }
-  buf.at(static_cast<size_t>(len)) = '\0';
+
+  printf("[WiFi] Received request: %d bytes\n", totalLength);
 
   if (std::strncmp(buf.data(), "POST", 4) == 0)
   {
@@ -154,19 +191,26 @@ auto handleClientRequest(const int32_t client, WifiCredentials& creds) -> bool
     if (bodyPtr != nullptr)
     {
       const auto body = std::string_view(bodyPtr).substr(4);
+      printf("[WiFi] POST body: %.*s\n", static_cast<int>(body.length()), body.data());
 
       const auto ssidParsed = parseFormField(body, "ssid=", std::span(creds.ssid));
-      const auto passParsed = parseFormField(body, "pass=", std::span(creds.pass));
+      const auto passParsed = parseFormField(body, "pass=", std::span(creds.password));
       creds.valid           = ssidParsed and (creds.ssid[0] != '\0');
       if (not passParsed)
       {
-        creds.pass[0] = '\0';
+        creds.password[0] = '\0';
       }
       if (creds.valid)
       {
+        printf("[WiFi] Credentials parsed: SSID='%s'\n", creds.ssid.data());
         sendResponse(client, SUCCESS_RESPONSE_PAGE);
         return true;
       }
+      printf("[WiFi] Failed to parse credentials from POST\n");
+    }
+    else
+    {
+      printf("[WiFi] POST request without body separator\n");
     }
     sendResponse(client, FORM_PAGE);
   }
@@ -197,48 +241,113 @@ auto WifiProvisioner::init() -> bool
   return true;
 }
 
-auto WifiProvisioner::loadStoredCredentials() -> WifiCredentials
+auto WifiProvisioner::loadStoredCredentials() -> std::array<WifiCredentials, MAX_SAVED_NETWORKS>
 {
-  WifiCredentials creds{};
-  const auto*     flashAddr = std::bit_cast<const uint8_t*>(XIP_BASE + flashStorageOffset());
+  std::array<WifiCredentials, MAX_SAVED_NETWORKS> creds{};
 
   FlashRecord record;
-  std::memcpy(&record, flashAddr, sizeof(record));
+  if (not FlashManager::getInstance().readData(flashStorageOffset(),
+                                               std::span(reinterpret_cast<uint8_t*>(&record), sizeof(record))))
+  {
+    return creds;
+  }
 
   if (record.magic != CRED_FLASH_MAGIC)
   {
     return creds;
   }
 
-  const auto computed = crc32(&record.creds, sizeof(WifiCredentials));
+  const auto computed = crc32(&record.creds, sizeof(record.creds));
   if (computed != record.crc) [[unlikely]]
   {
     return creds;
   }
 
-  creds       = record.creds;
-  creds.valid = (creds.ssid[0] != '\0');
+  creds = record.creds;
   return creds;
 }
 
-void WifiProvisioner::storeCredentials(const WifiCredentials& creds)
+void WifiProvisioner::storeCredentials(const WifiCredentials& newCreds)
 {
+  printf("[WiFi] storeCredentials: begin (valid=%d, ssid='%s')\n", newCreds.valid ? 1 : 0, newCreds.ssid.data());
+
+  auto   currentCreds = loadStoredCredentials();
+  size_t count        = 0;
+  bool   updated      = false;
+
+  // Check if exists and update
+  for (auto& cred : currentCreds)
+  {
+    if (cred.valid)
+    {
+      count++;
+      if (std::strncmp(cred.ssid.data(), newCreds.ssid.data(), cred.ssid.size()) == 0)
+      {
+        cred    = newCreds;
+        updated = true;
+        break;
+      }
+    }
+  }
+
+  // If not updated, add new
+  if (not updated)
+  {
+    if (count < MAX_SAVED_NETWORKS)
+    {
+      // Find first empty slot
+      for (auto& cred : currentCreds)
+      {
+        if (not cred.valid)
+        {
+          cred = newCreds;
+          count++;
+          break;
+        }
+      }
+    }
+    else
+    {
+      // Full, shift left and add to end (FIFO)
+      for (size_t i = 0; i < MAX_SAVED_NETWORKS - 1; ++i)
+      {
+        currentCreds[i] = currentCreds[i + 1];
+      }
+      currentCreds[MAX_SAVED_NETWORKS - 1] = newCreds;
+    }
+  }
+
+  printf("[WiFi] Saved networks: %zu/%zu\n", count, MAX_SAVED_NETWORKS);
+  printf("[WiFi] Saved networks: %zu/%zu (updated=%d)\n", count, MAX_SAVED_NETWORKS, updated ? 1 : 0);
+
   FlashRecord record{};
   record.magic = CRED_FLASH_MAGIC;
-  record.creds = creds;
-  record.crc   = crc32(&record.creds, sizeof(WifiCredentials));
+  record.creds = currentCreds;
+  record.crc   = crc32(&record.creds, sizeof(record.creds));
 
   static_assert(sizeof(FlashRecord) <= CRED_FLASH_SECTOR_SIZE, "FlashRecord must fit within a single flash sector");
 
-  std::array<uint8_t, CRED_FLASH_SECTOR_SIZE> page{};
-  std::ranges::fill(page, 0xFF);
-  std::memcpy(page.data(), &record, sizeof(record));
+  auto page = std::make_unique<std::array<uint8_t, CRED_FLASH_SECTOR_SIZE>>();
+  std::ranges::fill(*page, 0xFF);
+  std::memcpy(page->data(), &record, sizeof(record));
 
   const auto addr = flashStorageOffset();
-  const auto ints = save_and_disable_interrupts();
-  flash_range_erase(addr, CRED_FLASH_SECTOR_SIZE);
-  flash_range_program(addr, page.data(), page.size());
-  restore_interrupts(ints);
+  printf("[WiFi] Flash write at offset 0x%08lx (size=%u)\n", static_cast<unsigned long>(addr),
+         static_cast<unsigned>(page->size()));
+  fflush(stdout);
+
+  auto& flash = FlashManager::getInstance();
+  if (flash.erase(addr, CRED_FLASH_SECTOR_SIZE))
+  {
+    printf("[WiFi] Flash erase succeeded\n");
+    flash.writeData(addr, *page);
+  }
+  else
+  {
+    printf("[WiFi] Flash erase failed!\n");
+  }
+
+  printf("[WiFi] storeCredentials: done\n");
 }
 
 auto WifiProvisioner::connectSta(const WifiCredentials& creds) -> bool
@@ -259,7 +368,7 @@ auto WifiProvisioner::connectSta(const WifiCredentials& creds) -> bool
 
   provisioning_ = false;
   printf("[WiFi] Connecting to SSID '%s'...\n", creds.ssid.data());
-  const auto response = cyw43_arch_wifi_connect_timeout_ms(creds.ssid.data(), creds.pass.data(),
+  const auto response = cyw43_arch_wifi_connect_timeout_ms(creds.ssid.data(), creds.password.data(),
                                                            CYW43_AUTH_WPA2_AES_PSK, WIFI_CONNECT_TIMEOUT_MS);
   if (response != 0) [[unlikely]]
   {
@@ -368,6 +477,7 @@ auto WifiProvisioner::startApAndServe(const uint32_t             timeoutMs,
   dhcp_server_deinit(&dhcpServer);
   cyw43_arch_disable_ap_mode();
   provisioning_ = false;
+  printf("[WiFi] AP stopped, returning creds (valid=%d)\n", creds.valid ? 1 : 0);
   return creds;
 }
 
