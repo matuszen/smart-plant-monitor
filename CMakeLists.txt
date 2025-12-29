@@ -32,8 +32,10 @@ pico_sdk_init()
 
 add_library(freertos_config INTERFACE)
 target_include_directories(freertos_config SYSTEM INTERFACE
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/inc
     ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/libs/inc
+    ${CMAKE_CURRENT_SOURCE_DIR}/libs/src
 )
 target_compile_definitions(freertos_config INTERFACE projCOVERAGE_TEST=0)
 include(${FREERTOS_KERNEL_PATH}/portable/ThirdParty/GCC/RP2040/FreeRTOS_Kernel_import.cmake)

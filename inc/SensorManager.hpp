@@ -1,18 +1,17 @@
 #pragma once
 
-#include <cstdint>
-#include <memory>
+#include "EnvironmentalSensor.hpp"
+#include "LightSensor.hpp"
+#include "SoilMoistureSensor.hpp"
+#include "Types.hpp"
+#include "WaterLevelSensor.hpp"
 
 #include <FreeRTOS.h>
+#include <hardware/i2c.h>
 #include <semphr.h>
 
-#include <hardware/i2c.h>
-
-#include "EnvironmentalSensor.h"
-#include "LightSensor.h"
-#include "SoilMoistureSensor.h"
-#include "Types.h"
-#include "WaterLevelSensor.h"
+#include <cstdint>
+#include <memory>
 
 class SensorManager final
 {

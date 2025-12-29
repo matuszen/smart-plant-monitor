@@ -1,25 +1,24 @@
-#include <cstdint>
-#include <cstdio>
-#include <memory>
+#include "SensorManager.hpp"
+#include "Config.hpp"
+#include "EnvironmentalSensor.hpp"
+#include "LightSensor.hpp"
+#include "SoilMoistureSensor.hpp"
+#include "Types.hpp"
+#include "WaterLevelSensor.hpp"
 
 #include <FreeRTOS.h>
-#include <semphr.h>
-
 #include <hardware/adc.h>
 #include <hardware/gpio.h>
 #include <hardware/i2c.h>
 #include <hardware/structs/io_bank0.h>
+#include <pico/mutex.h>
 #include <pico/time.h>
+#include <portmacrocommon.h>
+#include <semphr.h>
 
-#include "Config.h"
-#include "EnvironmentalSensor.h"
-#include "LightSensor.h"
-#include "SensorManager.h"
-#include "SoilMoistureSensor.h"
-#include "Types.h"
-#include "WaterLevelSensor.h"
-
-#include "portmacrocommon.h"
+#include <cstdint>
+#include <cstdio>
+#include <memory>
 
 namespace
 {

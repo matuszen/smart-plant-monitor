@@ -21,6 +21,20 @@
             }
         },
         {
+            "label": "Show Image Size",
+            "type": "shell",
+            "command": "ls",
+            "args": [
+                "-lh",
+                "${workspaceFolder}/build/smart_plant_monitor.bin"
+            ],
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated"
+            },
+            "problemMatcher": []
+        },
+        {
             "label": "Run Project",
             "type": "process",
             "command": "${env:HOME}/.pico-sdk/picotool/2.2.0-a4/picotool/picotool",
@@ -34,6 +48,9 @@
                 "panel": "dedicated"
             },
             "problemMatcher": [],
+            "dependsOn": [
+                "Show Image Size"
+            ],
             "windows": {
                 "command": "${env:USERPROFILE}/.pico-sdk/picotool/2.2.0-a4/picotool/picotool.exe"
             }

@@ -1,0 +1,26 @@
+#pragma once
+
+#include <cstddef>
+#include <cstdint>
+#include <span>
+
+class FlashManager final
+{
+public:
+  FlashManager(const FlashManager&)                    = delete;
+  auto operator=(const FlashManager&) -> FlashManager& = delete;
+  FlashManager(FlashManager&&)                         = delete;
+  auto operator=(FlashManager&&) -> FlashManager&      = delete;
+
+  static auto getInstance() -> FlashManager&;
+
+  [[nodiscard]] static auto readData(uint32_t offset, std::span<uint8_t> buffer) -> bool;
+  [[nodiscard]] static auto writeData(uint32_t offset, std::span<const uint8_t> data) -> bool;
+  [[nodiscard]] static auto erase(uint32_t offset, size_t size) -> bool;
+
+  [[nodiscard]] static auto getFlashAddress(uint32_t offset) -> uint32_t;
+
+private:
+  FlashManager()  = default;
+  ~FlashManager() = default;
+};

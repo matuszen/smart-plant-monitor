@@ -1,12 +1,12 @@
 #pragma once
 
-#include <cstdint>
-#include <optional>
+#include "Config.hpp"
+#include "Types.hpp"
 
 #include <hardware/i2c.h>
 
-#include "Config.h"
-#include "Types.h"
+#include <cstdint>
+#include <optional>
 
 class LightSensor final
 {

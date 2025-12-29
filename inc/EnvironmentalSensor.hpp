@@ -1,14 +1,14 @@
 #pragma once
 
+#include "Types.hpp"
+
+#include <hardware/i2c.h>
+
 #include <cstddef>
 #include <cstdint>
 #include <optional>
 
-#include <hardware/i2c.h>
-
-#include "Types.h"
-
-class EnvironmentalSensor
+class EnvironmentalSensor final
 {
 public:
   struct CalibrationData

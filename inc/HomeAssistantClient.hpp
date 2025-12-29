@@ -1,13 +1,13 @@
 #pragma once
 
-#include <array>
-#include <cstdint>
+#include "Types.hpp"
 
 #include <lwip/apps/mqtt.h>
 #include <lwip/arch.h>
 #include <lwip/ip_addr.h>
 
-#include "Types.h"
+#include <array>
+#include <cstdint>
 
 class SensorManager;
 class IrrigationController;

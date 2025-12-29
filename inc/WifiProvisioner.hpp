@@ -6,7 +6,7 @@
 struct WifiCredentials
 {
   std::array<char, 33> ssid{};
-  std::array<char, 65> password{};
+  std::array<char, 65> pass{};
   bool                 valid{false};
 };
 
@@ -22,7 +22,7 @@ public:
   auto operator=(WifiProvisioner&&) -> WifiProvisioner&      = delete;
 
   [[nodiscard]] auto        init() -> bool;
-  [[nodiscard]] static auto loadStoredCredentials() -> std::array<WifiCredentials, 10>;
+  [[nodiscard]] static auto loadStoredCredentials() -> WifiCredentials;
 
   [[nodiscard]] auto connectSta(const WifiCredentials& creds) -> bool;
   [[nodiscard]] auto startApAndServe(uint32_t timeoutMs, const volatile bool* cancelFlag = nullptr) -> WifiCredentials;

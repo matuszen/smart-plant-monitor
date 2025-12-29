@@ -1,13 +1,13 @@
 #pragma once
 
-#include <cstdint>
-#include <optional>
+#include "Config.hpp"
+#include "Types.hpp"
 
 #include <hardware/adc.h>
 #include <hardware/gpio.h>
 
-#include "Config.h"
-#include "Types.h"
+#include <cstdint>
+#include <optional>
 
 class SoilMoistureSensor final
 {

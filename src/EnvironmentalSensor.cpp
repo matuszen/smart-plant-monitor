@@ -1,13 +1,13 @@
-#include <array>
-#include <cstdint>
-#include <cstdio>
-#include <optional>
+#include "EnvironmentalSensor.hpp"
+#include "Types.hpp"
 
 #include <hardware/i2c.h>
 #include <pico/time.h>
 
-#include "EnvironmentalSensor.h"
-#include "Types.h"
+#include <array>
+#include <cstdint>
+#include <cstdio>
+#include <optional>
 
 namespace
 {

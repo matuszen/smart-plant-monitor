@@ -1,14 +1,14 @@
+#include "WaterLevelSensor.hpp"
+#include "Config.hpp"
+#include "Types.hpp"
+
+#include <hardware/i2c.h>
+
 #include <algorithm>
 #include <array>
 #include <cstdint>
 #include <cstdio>
 #include <optional>
-
-#include <hardware/i2c.h>
-
-#include "Config.h"
-#include "Types.h"
-#include "WaterLevelSensor.h"
 
 WaterLevelSensor::WaterLevelSensor(i2c_inst_t* i2c, const uint8_t lowAddress, const uint8_t highAddress)
   : i2c_(i2c), lowAddress_(lowAddress), highAddress_(highAddress)

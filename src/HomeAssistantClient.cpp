@@ -1,10 +1,8 @@
-#include <algorithm>
-#include <array>
-#include <cstdint>
-#include <cstdio>
-#include <cstring>
-#include <sstream>
-#include <string>
+#include "HomeAssistantClient.hpp"
+#include "Config.hpp"
+#include "IrrigationController.hpp"
+#include "SensorManager.hpp"
+#include "Types.hpp"
 
 #include <cyw43_ll.h>
 #include <lwip/apps/mqtt.h>
@@ -15,11 +13,13 @@
 #include <lwip/ip_addr.h>
 #include <pico/cyw43_arch.h>
 
-#include "Config.h"
-#include "HomeAssistantClient.h"
-#include "IrrigationController.h"
-#include "SensorManager.h"
-#include "Types.h"
+#include <algorithm>
+#include <array>
+#include <cstdint>
+#include <cstdio>
+#include <cstring>
+#include <sstream>
+#include <string>
 
 namespace
 {

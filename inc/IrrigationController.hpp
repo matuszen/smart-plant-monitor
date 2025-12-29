@@ -1,10 +1,10 @@
 #pragma once
 
-#include <cstdint>
+#include "Config.hpp"
+#include "SensorManager.hpp"
+#include "Types.hpp"
 
-#include "Config.h"
-#include "SensorManager.h"
-#include "Types.h"
+#include <cstdint>
 
 class IrrigationController final
 {
@@ -18,7 +18,8 @@ public:
   auto operator=(IrrigationController&&) noexcept -> IrrigationController& = delete;
 
   auto init() -> bool;
-  void update();
+  void update(const SensorData& sensorData);
+  void checkWateringTimeout();
 
   void startWatering(uint32_t durationMs = Config::DEFAULT_WATERING_DURATION_MS);
   void stopWatering();
@@ -53,10 +54,12 @@ private:
   uint32_t nextWateringEstimateMs_{0};
   float    lastSoilPercentage_{Config::SOIL_MOISTURE_WET_THRESHOLD};
 
+  SensorData lastSensorData_{};
+
   static void               activateRelay(bool enable);
   [[nodiscard]] auto        shouldStartWatering() const -> bool;
   [[nodiscard]] auto        canStartWatering() const -> bool;
-  void                      handleHumidityBasedMode();
-  void                      handleEvapotranspirationMode();
+  void                      handleHumidityBasedMode(const SensorData& sensorData);
+  void                      handleEvapotranspirationMode(const SensorData& sensorData);
   [[nodiscard]] static auto computeEvapoLossPerHour(const EnvironmentData& env) -> float;
 };

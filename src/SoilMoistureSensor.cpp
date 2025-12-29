@@ -1,15 +1,15 @@
-#include <algorithm>
-#include <cstdint>
-#include <cstdio>
-#include <optional>
+#include "SoilMoistureSensor.hpp"
+#include "Config.hpp"
+#include "Types.hpp"
 
 #include <hardware/adc.h>
 #include <hardware/gpio.h>
 #include <pico/time.h>
 
-#include "Config.h"
-#include "SoilMoistureSensor.h"
-#include "Types.h"
+#include <algorithm>
+#include <cstdint>
+#include <cstdio>
+#include <optional>
 
 SoilMoistureSensor::SoilMoistureSensor(const uint8_t adcPin, const uint8_t adcChannel, const uint8_t powerPin)
   : adcPin_(adcPin), adcChannel_(adcChannel), powerPin_(powerPin)

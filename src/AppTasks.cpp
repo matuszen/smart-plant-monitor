@@ -1,40 +1,39 @@
-#include <cstddef>
-#include <cstdint>
-#include <cstdio>
+#include "AppTasks.hpp"
+#include "Config.hpp"
+#include "HomeAssistantClient.hpp"
+#include "IrrigationController.hpp"
+#include "SensorManager.hpp"
+#include "Types.hpp"
+#include "WifiProvisioner.hpp"
 
 #include <FreeRTOS.h>
+#include <hardware/gpio.h>
+#include <hardware/watchdog.h>
+#include <pico/platform/panic.h>
+#include <pico/stdlib.h>
+#include <pico/time.h>
+#include <portmacrocommon.h>
 #include <projdefs.h>
 #include <queue.h>
 #include <task.h>
 
-#include <hardware/gpio.h>
-#include <hardware/watchdog.h>
-#include <pico/cyw43_arch.h>
-#include <pico/platform/panic.h>
-#include <pico/stdlib.h>
-#include <pico/time.h>
+#include <cstdint>
+#include <cstdio>
 
-#include "AppTasks.h"
-#include "Config.h"
-#include "HomeAssistantClient.h"
-#include "IrrigationController.h"
-#include "SensorManager.h"
-#include "Types.h"
-#include "WifiProvisioner.h"
-
-#include "portmacrocommon.h"
+namespace
+{
 
 extern "C"
 {
   void vApplicationMallocFailedHook(void)
   {
-    panic("FreeRTOS: Malloc Failed! Brak pamieci na stercie.");
+    panic("FreeRTOS: Malloc Failed! No memory available.");
   }
 
   void vApplicationStackOverflowHook(TaskHandle_t xTask, char* pcTaskName)
   {
     (void)xTask;
-    panic("FreeRTOS: Stack Overflow w zadaniu: %s", pcTaskName);
+    panic("FreeRTOS: Stack Overflow in task: %s", pcTaskName);
   }
 
   void vApplicationIdleHook(void)
@@ -45,9 +44,6 @@ extern "C"
   {
   }
 }
-
-namespace
-{
 
 inline constexpr UBaseType_t SENSOR_TASK_PRIORITY{tskIDLE_PRIORITY + 2};
 inline constexpr UBaseType_t IRRIGATION_TASK_PRIORITY{tskIDLE_PRIORITY + 1};
@@ -389,6 +385,8 @@ void handleSensorRead(uint32_t now, SensorManager& sensorManager, IrrigationCont
   logWaterLevel(data);
   updateErrorLedFromData(data);
 
+  irrigationController.update(data);
+
   if constexpr (Config::ENABLE_HOME_ASSISTANT)
   {
     haClient.publishSensorState(now, data, irrigationController.isWatering());
@@ -401,8 +399,9 @@ void sensorTask(void* params)
   auto& sensorManager        = *ctx.getSensorManager();
   auto& irrigationController = *ctx.getIrrigationController();
 
-  uint32_t           lastSensorRead{0};
-  constexpr uint32_t sensorTaskTickMs{100};
+  uint32_t           lastSensorRead   = Config::DEFAULT_SENSOR_READ_INTERVAL_MS;
+  constexpr uint32_t sensorTaskTickMs = 100;
+
   while (true)
   {
     const auto now = nowMs();
@@ -426,7 +425,7 @@ void irrigationTask(void* params)
   auto& irrigationController = *static_cast<IrrigationController*>(params);
   while (true)
   {
-    irrigationController.update();
+    irrigationController.checkWateringTimeout();
     const auto sleepMs = irrigationController.nextSleepHintMs();
     vTaskDelay(pdMS_TO_TICKS(sleepMs));
   }
@@ -458,24 +457,27 @@ void processWifiCommand(WifiCommand cmd, ProvisionContext* ctx, bool& connected,
       apActive     = true;
       apActiveFlag = true;
 
+      ctx->haClient->setWifiReady(false);
+
       auto newCreds = ctx->provisioner->startApAndServe(Config::AP_SESSION_TIMEOUT_MS, &apCancelFlag);
-      printf("[WiFi] Provisioning task returned (valid=%d)\n", newCreds.valid ? 1 : 0);
 
       apActive     = false;
       apActiveFlag = false;
 
       if (newCreds.valid)
       {
-        printf("[WiFi] Provisioning done, saving credentials and rebooting...\n");
         WifiProvisioner::storeCredentials(newCreds);
-        printf("[WiFi] Credentials saved, rebooting...\n");
-        blinkErrorAsync(3, pdMS_TO_TICKS(200), pdMS_TO_TICKS(200));
-        watchdog_reboot(0, 0, 0);
-        vTaskDelay(pdMS_TO_TICKS(1000));
+        connected = ctx->provisioner->connectSta(newCreds);
+        ctx->haClient->setWifiReady(connected);
+        if constexpr (Config::ENABLE_HOME_ASSISTANT)
+        {
+          ctx->haClient->init();
+        }
       }
       else
       {
-        connected = connected && ctx->provisioner->isConnected();
+        connected = connected and ctx->provisioner->isConnected();
+        ctx->haClient->setWifiReady(connected);
       }
 
       setNetworkLedState(connected ? NetworkLedState::CONNECTED : NetworkLedState::OFF);
@@ -501,22 +503,11 @@ void wifiProvisionTask(void* params)
   }
 
   setNetworkLedState(NetworkLedState::CONNECTING);
-  auto credsList = WifiProvisioner::loadStoredCredentials();
-  bool connected = false;
+  auto creds = WifiProvisioner::loadStoredCredentials();
 
-  for (size_t i = credsList.size(); i-- > 0;)
-  {
-    if (credsList[i].valid)
-    {
-      if (ctx->provisioner->connectSta(credsList[i]))
-      {
-        connected = true;
-        break;
-      }
-    }
-  }
-  bool apActive = false;
-  apActiveFlag  = false;
+  auto connected = ctx->provisioner->connectSta(creds);
+  bool apActive  = false;
+  apActiveFlag   = false;
   if (connected)
   {
     ctx->haClient->setWifiReady(true);

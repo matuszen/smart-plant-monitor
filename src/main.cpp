@@ -1,21 +1,20 @@
-#include <cstdio>
+#include "AppTasks.hpp"
+#include "Config.hpp"
+#include "HomeAssistantClient.hpp"
+#include "IrrigationController.hpp"
+#include "SensorManager.hpp"
+#include "WifiProvisioner.hpp"
 
 #include <FreeRTOS.h>
-#include <task.h>
-
 #include <hardware/gpio.h>
 #include <pico/platform/common.h>
 #include <pico/platform/panic.h>
 #include <pico/stdio.h>
 #include <pico/stdlib.h>
 #include <pico/time.h>
+#include <task.h>
 
-#include "AppTasks.h"
-#include "Config.h"
-#include "HomeAssistantClient.h"
-#include "IrrigationController.h"
-#include "SensorManager.h"
-#include "WifiProvisioner.h"
+#include <cstdio>
 
 namespace
 {

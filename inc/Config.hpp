@@ -1,10 +1,10 @@
 #pragma once
 
+#include <pico/stdlib.h>
+
 #include <cstddef>
 #include <cstdint>
 #include <string_view>
-
-#include <pico/stdlib.h>
 
 namespace Config
 {
@@ -12,6 +12,12 @@ namespace Config
 inline constexpr std::string_view SYSTEM_VERSION    = "1.0";
 inline constexpr std::string_view SYSTEM_NAME       = "Smart Plant Monitor";
 inline constexpr const char*      DEVICE_IDENTIFIER = "smart-plant-monitor";
+
+inline constexpr const char* WIFI_HOSTNAME = DEVICE_IDENTIFIER;
+
+inline constexpr uint32_t AP_SESSION_TIMEOUT_MS = 600'000;
+constexpr const char*     AP_SSID               = "PlantMonitor-Setup";
+constexpr const char*     AP_PASS               = "plantsetup";
 
 inline constexpr bool        ENABLE_HOME_ASSISTANT    = true;
 inline constexpr const char* MQTT_BROKER_HOST         = "192.168.1.10";
@@ -69,18 +75,14 @@ inline constexpr uint8_t LED_STATUS_PIN  = 1;
 inline constexpr uint8_t LED_NETWORK_PIN = 3;
 inline constexpr uint8_t LED_ERROR_PIN   = 7;
 
-inline constexpr uint32_t BUTTON_AP_MIN_MS      = 5'000;
-inline constexpr uint32_t BUTTON_REBOOT_MS      = 10'000;
-inline constexpr uint32_t AP_SESSION_TIMEOUT_MS = 600'000;
+inline constexpr uint32_t BUTTON_AP_MIN_MS = 5'000;
+inline constexpr uint32_t BUTTON_REBOOT_MS = 10'000;
 
 inline constexpr uint32_t MIN_WATERING_DURATION_MS     = 1'000;
 inline constexpr uint32_t MAX_WATERING_DURATION_MS     = 5'000;
 inline constexpr uint32_t DEFAULT_WATERING_DURATION_MS = 3'000;
 inline constexpr uint32_t WATERING_COOLDOWN_MS         = 300'000;
 inline constexpr uint32_t IRRIGATION_ACTIVE_TICK_MS    = 200;
-
-constexpr const char* AP_SSID = "PlantMonitor-Setup";
-constexpr const char* AP_PASS = "plantsetup";
 
 inline constexpr float    EVAPO_SOIL_BUCKET_MM        = 35.0F;
 inline constexpr float    EVAPO_MIN_DROP_PER_HOUR_PCT = 0.05F;
@@ -91,6 +93,6 @@ inline constexpr bool     ENABLE_SERIAL_DEBUG = true;
 inline constexpr size_t   MAX_LOG_ENTRIES     = 1'000;
 inline constexpr uint32_t SERIAL_BAUDRATE     = 115'200;
 
-inline constexpr uint32_t DEFAULT_SENSOR_READ_INTERVAL_MS = ENABLE_SERIAL_DEBUG ? 15'000 : 3'600'000;
+inline constexpr uint32_t DEFAULT_SENSOR_READ_INTERVAL_MS = 3'600'000;
 
 }  // namespace Config

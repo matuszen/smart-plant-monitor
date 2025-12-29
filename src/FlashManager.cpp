@@ -1,15 +1,21 @@
-#include "FlashManager.h"
-
-#include <cstdio>
-#include <cstring>
+#include "FlashManager.hpp"
 
 #include <FreeRTOS.h>
-#include <task.h>
-
+#include <boards/pico2_w.h>
 #include <hardware/flash.h>
+#include <hardware/regs/addressmap.h>
 #include <hardware/sync.h>
+#include <pico/error.h>
 #include <pico/flash.h>
 #include <pico/platform.h>
+#include <pico/platform/sections.h>
+#include <task.h>
+
+#include <bit>
+#include <cstdint>
+#include <cstdio>
+#include <cstring>
+#include <span>
 
 namespace
 {
@@ -21,9 +27,6 @@ struct FlashOpContext
   size_t         size;
 };
 
-// Critical: This function MUST be in RAM because it runs while XIP is disabled.
-// We use __no_inline_not_in_flash_func to ensure it's not inlined into a flash function
-// and is placed in RAM.
 void __no_inline_not_in_flash_func(flashProgramTrampoline)(void* param)
 {
   const auto* ctx = static_cast<FlashOpContext*>(param);
@@ -56,7 +59,7 @@ auto FlashManager::readData(const uint32_t offset, const std::span<uint8_t> buff
     return false;
   }
 
-  const auto* flashPtr = reinterpret_cast<const uint8_t*>(getFlashAddress(offset));
+  const auto* flashPtr = std::bit_cast<const uint8_t*>(getFlashAddress(offset));
   std::memcpy(buffer.data(), flashPtr, buffer.size());
   return true;
 }
@@ -68,15 +71,11 @@ auto FlashManager::writeData(const uint32_t offset, const std::span<const uint8_
     return false;
   }
 
-  // Align to page size if needed, but flash_range_program handles pages.
-  // However, offset must be aligned to 256 bytes (FLASH_PAGE_SIZE) usually for programming?
-  // Actually flash_range_program requires:
-  // - addr aligned to 256 bytes (FLASH_PAGE_SIZE)
-  // - count multiple of 256 bytes
-  // Let's assume the caller handles alignment or we are writing full sectors/pages.
-  // For WifiProvisioner, we write a full sector (4096).
-
-  FlashOpContext ctx{offset, data.data(), data.size()};
+  FlashOpContext ctx{
+    .offset = offset,
+    .data   = data.data(),
+    .size   = data.size(),
+  };
 
   printf("[FlashManager] Write: calling flash_safe_execute\n");
 
@@ -102,22 +101,31 @@ auto FlashManager::erase(const uint32_t offset, const size_t size) -> bool
     return false;
   }
 
-  // Erase must be aligned to 4096 bytes (FLASH_SECTOR_SIZE)
   if ((offset % FLASH_SECTOR_SIZE != 0) or (size % FLASH_SECTOR_SIZE != 0))
   {
     printf("[FlashManager] Erase alignment error\n");
     return false;
   }
 
-  FlashOpContext ctx{offset, nullptr, size};
+  FlashOpContext ctx{
+    .offset = offset,
+    .data   = nullptr,
+    .size   = size,
+  };
 
   printf("[FlashManager] Erase: calling flash_safe_execute\n");
-  fflush(stdout);
+  if (fflush(stdout) != 0)
+  {
+    printf("[FlashManager] Failed to flush stdout\n");
+  }
   vTaskSuspendAll();
   const auto result = flash_safe_execute(flashEraseTrampoline, &ctx, 2000);
   xTaskResumeAll();
   printf("[FlashManager] Erase: returned %d\n", result);
-  fflush(stdout);
+  if (fflush(stdout) != 0)
+  {
+    printf("[FlashManager] Failed to flush stdout\n");
+  }
 
   if (result != PICO_OK)
   {

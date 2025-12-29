@@ -1,15 +1,15 @@
-#include <algorithm>
-#include <cmath>
-#include <cstdint>
-#include <cstdio>
+#include "IrrigationController.hpp"
+#include "Config.hpp"
+#include "SensorManager.hpp"
+#include "Types.hpp"
 
 #include <hardware/gpio.h>
 #include <pico/time.h>
 
-#include "Config.h"
-#include "IrrigationController.h"
-#include "SensorManager.h"
-#include "Types.h"
+#include <algorithm>
+#include <cmath>
+#include <cstdint>
+#include <cstdio>
 
 IrrigationController::IrrigationController(SensorManager* sensorManager) : sensorManager_(sensorManager)
 {
@@ -41,33 +41,41 @@ auto IrrigationController::init() -> bool
   return true;
 }
 
-void IrrigationController::update()
+void IrrigationController::update(const SensorData& sensorData)
 {
   if (not initialized_)
   {
     return;
   }
 
-  sleepHintMs_ = Config::IRRIGATION_ACTIVE_TICK_MS;
+  lastSensorData_ = sensorData;
+  sleepHintMs_    = Config::IRRIGATION_ACTIVE_TICK_MS;
 
   if (mode_ == IrrigationMode::HUMIDITY)
   {
-    handleHumidityBasedMode();
+    handleHumidityBasedMode(sensorData);
   }
 
   if (mode_ == IrrigationMode::EVAPOTRANSPIRATION)
   {
-    handleEvapotranspirationMode();
+    handleEvapotranspirationMode(sensorData);
   }
 
-  if (isWatering_)
+  checkWateringTimeout();
+}
+
+void IrrigationController::checkWateringTimeout()
+{
+  if (not isWatering_)
   {
-    const auto now = to_ms_since_boot(get_absolute_time());
-    if ((now - wateringStartTime_) >= wateringDuration_)
-    {
-      printf("[IrrigationController] Watering duration elapsed, stopping\n");
-      stopWatering();
-    }
+    return;
+  }
+
+  const auto now = to_ms_since_boot(get_absolute_time());
+  if ((now - wateringStartTime_) >= wateringDuration_)
+  {
+    printf("[IrrigationController] Watering duration elapsed, stopping\n");
+    stopWatering();
   }
 }
 
@@ -182,12 +190,11 @@ auto IrrigationController::canStartWatering() const -> bool
   return timeSinceLast >= Config::WATERING_COOLDOWN_MS;
 }
 
-void IrrigationController::handleHumidityBasedMode()
+void IrrigationController::handleHumidityBasedMode(const SensorData& sensorData)
 {
   if (isWatering_)
   {
-    const auto soilData = sensorManager_->readSoilMoisture();
-    if (soilData.valid and soilData.percentage >= Config::SOIL_MOISTURE_WET_THRESHOLD)
+    if (sensorData.soil.valid and sensorData.soil.percentage >= Config::SOIL_MOISTURE_WET_THRESHOLD)
     {
       printf("[IrrigationController] Soil moisture sufficient, stopping early\n");
       stopWatering();
@@ -201,16 +208,11 @@ void IrrigationController::handleHumidityBasedMode()
   }
 }
 
-void IrrigationController::handleEvapotranspirationMode()
+void IrrigationController::handleEvapotranspirationMode(const SensorData& sensorData)
 {
-  if (sensorManager_ == nullptr) [[unlikely]]
-  {
-    return;
-  }
-
-  const auto env        = sensorManager_->readBME280();
-  const auto soil       = sensorManager_->readSoilMoisture();
-  const auto waterLevel = sensorManager_->readWaterLevel();
+  const auto& env        = sensorData.environment;
+  const auto& soil       = sensorData.soil;
+  const auto& waterLevel = sensorData.water;
 
   if (isWatering_)
   {
@@ -224,7 +226,7 @@ void IrrigationController::handleEvapotranspirationMode()
 
   if ((not env.isValid()) or (not soil.valid)) [[unlikely]]
   {
-    handleHumidityBasedMode();
+    handleHumidityBasedMode(sensorData);
     return;
   }
 
