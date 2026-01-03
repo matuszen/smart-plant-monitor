@@ -32,15 +32,27 @@ namespace
 MQTTClient::MQTTClient(SensorManager* const sensorManager, IrrigationController* const irrigationController)
   : sensorManager_(sensorManager), irrigationController_(irrigationController)
 {
-  if constexpr (not Config::MQTT::ENABLE)
+}
+
+MQTTClient::~MQTTClient()
+{
+  if (mqttClient_ != nullptr)
   {
-    return;
+    mqtt_client_free(mqttClient_);
+    mqttClient_ = nullptr;
+  }
+}
+
+auto MQTTClient::init(const MqttConfig& config) -> bool
+{
+  config_ = config;
+  if (not config_.enabled)
+  {
+    return true;
   }
 
-  const int32_t baseLen = std::char_traits<char>::length(Config::MQTT::BASE_TOPIC);
-
   const auto formatTopic = [&](char* const buffer, const size_t size, const char* const suffix) -> int32_t
-  { return std::snprintf(buffer, size, "%.*s/%s", baseLen, Config::MQTT::BASE_TOPIC, suffix); };
+  { return std::snprintf(buffer, size, "%s/%s", config_.baseTopic.data(), suffix); };
 
   if (formatTopic(availabilityTopic_.data(), availabilityTopic_.size(), "availability") < 0)
   {
@@ -53,23 +65,6 @@ MQTTClient::MQTTClient(SensorManager* const sensorManager, IrrigationController*
   if (formatTopic(commandTopic_.data(), commandTopic_.size(), "command") < 0)
   {
     printf("[MQTTClient] ERROR: command topic truncated\n");
-  }
-}
-
-MQTTClient::~MQTTClient()
-{
-  if (mqttClient_ != nullptr)
-  {
-    mqtt_client_free(mqttClient_);
-    mqttClient_ = nullptr;
-  }
-}
-
-auto MQTTClient::init() -> bool
-{
-  if constexpr (not Config::MQTT::ENABLE)
-  {
-    return true;
   }
 
   printf("[MQTTClient] Initializing MQTT integration...\n");
@@ -95,7 +90,7 @@ auto MQTTClient::init() -> bool
 
 void MQTTClient::loop(const uint32_t nowMs)
 {
-  if constexpr (not Config::MQTT::ENABLE)
+  if (not config_.enabled)
   {
     return;
   }
@@ -105,7 +100,7 @@ void MQTTClient::loop(const uint32_t nowMs)
 
 void MQTTClient::publishSensorState(const uint32_t nowMs, const SensorData& data, const bool watering, const bool force)
 {
-  if constexpr (not Config::MQTT::ENABLE)
+  if (not config_.enabled)
   {
     return;
   }
@@ -118,7 +113,7 @@ void MQTTClient::publishSensorState(const uint32_t nowMs, const SensorData& data
     return;
   }
 
-  if (not force and (nowMs - lastPublish_) < Config::MQTT::DEFAULT_PUBLISH_INTERVAL_MS)
+  if (not force and (nowMs - lastPublish_) < config_.publishIntervalMs)
   {
     return;
   }
@@ -205,17 +200,17 @@ void MQTTClient::ensureMqtt(const uint32_t nowMs)
 void MQTTClient::connectMqtt()
 {
   const auto info = mqtt_connect_client_info_t{
-    .client_id   = Config::MQTT::CLIENT_ID,
-    .client_user = hasValue(Config::MQTT::USERNAME) ? Config::MQTT::USERNAME : nullptr,
-    .client_pass = hasValue(Config::MQTT::PASSWORD) ? Config::MQTT::PASSWORD : nullptr,
+    .client_id   = config_.clientId.data(),
+    .client_user = hasValue(config_.username.data()) ? config_.username.data() : nullptr,
+    .client_pass = hasValue(config_.password.data()) ? config_.password.data() : nullptr,
   };
 
-  printf("[MQTTClient] Connecting to MQTT broker %s:%u...\n", Config::MQTT::BROKER_HOST,
-         static_cast<unsigned>(Config::MQTT::BROKER_PORT));
+  printf("[MQTTClient] Connecting to MQTT broker %s:%u...\n", config_.brokerHost.data(),
+         static_cast<unsigned>(config_.brokerPort));
 
   connectionState_ = ConnectionState::CONNECTING;
   const auto error =
-    mqtt_client_connect(mqttClient_, &brokerIp_, Config::MQTT::BROKER_PORT, MQTTClient::mqttConnectionCb, this, &info);
+    mqtt_client_connect(mqttClient_, &brokerIp_, config_.brokerPort, MQTTClient::mqttConnectionCb, this, &info);
 
   if (error != ERR_OK) [[unlikely]]
   {
@@ -262,11 +257,9 @@ void MQTTClient::publishSensorDiscovery(std::string_view component, std::string_
 {
   std::array<char, 128> topic{};
 
-  const auto   prefixLen = std::char_traits<char>::length(Config::MQTT::DISCOVERY_PREFIX);
-  const size_t topicLen =
-    std::snprintf(topic.data(), topic.size(), "%.*s/%.*s/%.*s/config", static_cast<int32_t>(prefixLen),
-                  Config::MQTT::DISCOVERY_PREFIX, static_cast<int32_t>(component.size()), component.data(),
-                  static_cast<int32_t>(objectId.size()), objectId.data());
+  const size_t topicLen = std::snprintf(topic.data(), topic.size(), "%s/%.*s/%.*s/config",
+                                        config_.discoveryPrefix.data(), static_cast<int32_t>(component.size()),
+                                        component.data(), static_cast<int32_t>(objectId.size()), objectId.data());
 
   if (topicLen < 0 or topicLen >= topic.size())
   {
@@ -464,14 +457,14 @@ void MQTTClient::mqttIncomingDataCb(void* const arg, const uint8_t* const data, 
 
 auto MQTTClient::resolveBrokerIp() -> bool
 {
-  if (ipaddr_aton(Config::MQTT::BROKER_HOST, &brokerIp_) != 0)
+  if (ipaddr_aton(config_.brokerHost.data(), &brokerIp_) != 0)
   {
     brokerIpValid_ = true;
     return true;
   }
 
   connectionState_ = ConnectionState::RESOLVING_DNS;
-  const err_t err  = dns_gethostbyname(Config::MQTT::BROKER_HOST, &brokerIp_, MQTTClient::dnsFoundCb, this);
+  const err_t err  = dns_gethostbyname(config_.brokerHost.data(), &brokerIp_, MQTTClient::dnsFoundCb, this);
   if (err == ERR_OK)
   {
     brokerIpValid_   = true;

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <concepts>
 #include <cstdint>
 #include <type_traits>
@@ -10,6 +11,32 @@ concept Numeric = std::is_arithmetic_v<T>;
 template <typename T>
 concept SensorValue = Numeric<T> and std::copyable<T>;
 
+struct WifiCredentials
+{
+  std::array<char, 33> ssid{};
+  std::array<char, 65> pass{};
+  bool                 valid{false};
+};
+
+struct MqttConfig
+{
+  std::array<char, 64> brokerHost{};
+  uint16_t             brokerPort{1883};
+  std::array<char, 32> clientId{};
+  std::array<char, 32> username{};
+  std::array<char, 32> password{};
+  std::array<char, 32> discoveryPrefix{};
+  std::array<char, 32> baseTopic{};
+  uint32_t             publishIntervalMs{3'600'000};
+  bool                 enabled{true};
+};
+
+struct ApConfig
+{
+  std::array<char, 33> ssid{};
+  std::array<char, 65> pass{};
+};
+
 enum class IrrigationMode : uint8_t
 {
   OFF                = 0,
@@ -17,6 +44,15 @@ enum class IrrigationMode : uint8_t
   TIMER              = 2,
   HUMIDITY           = 3,
   EVAPOTRANSPIRATION = 4
+};
+
+struct SystemConfig
+{
+  WifiCredentials wifi{};
+  ApConfig        ap{};
+  MqttConfig      mqtt{};
+  uint32_t        sensorReadIntervalMs{3'600'000};
+  IrrigationMode  irrigationMode{IrrigationMode::TIMER};
 };
 
 enum class SystemStatus : uint8_t

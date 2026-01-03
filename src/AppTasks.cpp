@@ -1,5 +1,6 @@
 #include "AppTasks.hpp"
 #include "Config.hpp"
+#include "FlashManager.hpp"
 #include "IrrigationController.hpp"
 #include "MQTTClient.hpp"
 #include "SensorManager.hpp"
@@ -341,7 +342,7 @@ void buttonTask(void* const /*params*/)
 }
 
 void handleSensorRead(const uint32_t now, SensorManager& sensorManager, IrrigationController& irrigationController,
-                      MQTTClient& haClient)
+                      MQTTClient& mqttClient)
 {
   printf("[%u] Reading sensors...\n", now);
 
@@ -356,10 +357,7 @@ void handleSensorRead(const uint32_t now, SensorManager& sensorManager, Irrigati
 
   irrigationController.update(data);
 
-  if constexpr (Config::MQTT::ENABLE)
-  {
-    haClient.publishSensorState(now, data, irrigationController.isWatering());
-  }
+  mqttClient.publishSensorState(now, data, irrigationController.isWatering());
 }
 
 void sensorTask(void* const params)
@@ -368,18 +366,27 @@ void sensorTask(void* const params)
   auto& sensorManager        = *ctx.getSensorManager();
   auto& irrigationController = *ctx.getIrrigationController();
 
-  auto               lastSensorRead   = Config::DEFAULT_SENSOR_READ_INTERVAL_MS;
+  SystemConfig config;
+  if (!FlashManager::loadConfig(config))
+  {
+    config = {};
+  }
+
+  auto sensorReadInterval = config.sensorReadIntervalMs;
+  if (sensorReadInterval == 0)
+  {
+    sensorReadInterval = Config::DEFAULT_SENSOR_READ_INTERVAL_MS;
+  }
+
+  auto               lastSensorRead   = sensorReadInterval;
   constexpr uint32_t sensorTaskTickMs = 100;
 
   while (true)
   {
     const auto now = nowMs();
-    if constexpr (Config::MQTT::ENABLE)
-    {
-      ctx.loop(now);
-    }
+    ctx.loop(now);
 
-    if (now - lastSensorRead >= Config::DEFAULT_SENSOR_READ_INTERVAL_MS)
+    if (now - lastSensorRead >= sensorReadInterval)
     {
       handleSensorRead(now, sensorManager, irrigationController, ctx);
       lastSensorRead = now;
@@ -419,27 +426,37 @@ void processWifiCommand(const WifiCommand cmd, ProvisionContext* const ctx, bool
       apActive     = true;
       apActiveFlag = true;
 
-      ctx->haClient->setWifiReady(false);
+      ctx->mqttClient->setWifiReady(false);
 
-      auto newCreds = ctx->provisioner->startApAndServe(Config::AP_SESSION_TIMEOUT_MS, &apCancelFlag);
+      const bool reboot = ctx->provisioner->startApAndServe(Config::AP_SESSION_TIMEOUT_MS,
+                                                            *ctx->mqttClient->getSensorManager(), &apCancelFlag);
 
       apActive     = false;
       apActiveFlag = false;
 
-      if (newCreds.valid)
+      if (reboot)
       {
-        WifiProvisioner::storeCredentials(newCreds);
-        connected = ctx->provisioner->connectSta(newCreds);
-        ctx->haClient->setWifiReady(connected);
-        if constexpr (Config::MQTT::ENABLE)
-        {
-          const auto _ = ctx->haClient->init();
-        }
+        printf("[WiFi] Configuration updated, rebooting...\n");
+        watchdog_reboot(0, 0, 0);
+        vTaskDelay(pdMS_TO_TICKS(1000));
       }
       else
       {
-        connected = connected and ctx->provisioner->isConnected();
-        ctx->haClient->setWifiReady(connected);
+        SystemConfig config;
+        if (FlashManager::loadConfig(config) and config.wifi.valid)
+        {
+          connected = ctx->provisioner->connectSta(config.wifi);
+          ctx->mqttClient->setWifiReady(connected);
+          if (config.mqtt.enabled)
+          {
+            [[maybe_unused]] const auto _ = ctx->mqttClient->init(config.mqtt);
+          }
+        }
+        else
+        {
+          connected = connected and ctx->provisioner->isConnected();
+          ctx->mqttClient->setWifiReady(connected);
+        }
       }
 
       setNetworkLedState(connected ? NetworkLedState::CONNECTED : NetworkLedState::OFF);
@@ -459,29 +476,35 @@ void processWifiCommand(const WifiCommand cmd, ProvisionContext* const ctx, bool
 void wifiProvisionTask(void* const params)
 {
   auto* ctx = static_cast<ProvisionContext*>(params);
-  if ((ctx == nullptr) or (ctx->provisioner == nullptr) or (ctx->haClient == nullptr)) [[unlikely]]
+  if ((ctx == nullptr) or (ctx->provisioner == nullptr) or (ctx->mqttClient == nullptr)) [[unlikely]]
   {
     vTaskDelete(nullptr);
   }
 
   setNetworkLedState(NetworkLedState::CONNECTING);
-  auto creds = WifiProvisioner::loadStoredCredentials();
 
-  auto connected = ctx->provisioner->connectSta(creds);
-  bool apActive  = false;
-  apActiveFlag   = false;
+  SystemConfig config;
+  if (!FlashManager::loadConfig(config))
+  {
+    config = {};
+  }
+
+  bool connected = ctx->provisioner->connectSta(config.wifi);
+
+  bool apActive = false;
+  apActiveFlag  = false;
   if (connected)
   {
-    ctx->haClient->setWifiReady(true);
-    if constexpr (Config::MQTT::ENABLE)
+    ctx->mqttClient->setWifiReady(true);
+    if (config.mqtt.enabled)
     {
-      const auto _ = ctx->haClient->init();
+      [[maybe_unused]] const auto _ = ctx->mqttClient->init(config.mqtt);
     }
     setNetworkLedState(NetworkLedState::CONNECTED);
   }
   else
   {
-    ctx->haClient->setWifiReady(false);
+    ctx->mqttClient->setWifiReady(false);
     setNetworkLedState(NetworkLedState::OFF);
     printf("[WiFi] No valid connection.\n");
   }
@@ -515,7 +538,7 @@ void startAppTasks(IrrigationController& irrigationController, MQTTClient& mqttC
 
   static auto ctx = ProvisionContext{
     .provisioner = &provisioner,
-    .haClient    = &mqttClient,
+    .mqttClient  = &mqttClient,
     .queue       = wifiCommandQueue,
   };
 

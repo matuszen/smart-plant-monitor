@@ -1,14 +1,9 @@
 #pragma once
 
-#include <array>
-#include <cstdint>
+#include "SensorManager.hpp"
+#include "Types.hpp"
 
-struct WifiCredentials
-{
-  std::array<char, 33> ssid{};
-  std::array<char, 65> pass{};
-  bool                 valid{false};
-};
+#include <cstdint>
 
 class WifiProvisioner
 {
@@ -21,12 +16,11 @@ public:
   WifiProvisioner(WifiProvisioner&&)                         = delete;
   auto operator=(WifiProvisioner&&) -> WifiProvisioner&      = delete;
 
-  [[nodiscard]] auto        init() -> bool;
-  [[nodiscard]] static auto loadStoredCredentials() -> WifiCredentials;
+  [[nodiscard]] auto init() -> bool;
 
   [[nodiscard]] auto connectSta(const WifiCredentials& creds) -> bool;
-  [[nodiscard]] auto startApAndServe(uint32_t timeoutMs, const volatile bool* cancelFlag = nullptr) -> WifiCredentials;
-  static void        storeCredentials(const WifiCredentials& creds);
+  [[nodiscard]] auto startApAndServe(uint32_t timeoutMs, SensorManager& sensorManager,
+                                     const volatile bool* cancelFlag = nullptr) -> bool;
 
   [[nodiscard]] auto isConnected() const noexcept -> bool
   {

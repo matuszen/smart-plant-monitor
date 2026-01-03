@@ -44,7 +44,7 @@ struct LedSharedState
 struct ProvisionContext
 {
   WifiProvisioner* provisioner{};
-  MQTTClient*      haClient{};
+  MQTTClient*      mqttClient{};
   QueueHandle_t    queue{};
 };
 

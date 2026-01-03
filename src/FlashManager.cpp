@@ -1,4 +1,5 @@
 #include "FlashManager.hpp"
+#include "Types.hpp"
 
 #include <FreeRTOS.h>
 #include <boards/pico2_w.h>
@@ -19,6 +20,32 @@
 
 namespace
 {
+
+inline constexpr uint32_t CONFIG_MAGIC = 0x53'59'53'43;  // SYSC
+
+struct FlashRecord
+{
+  uint32_t     magic  = 0;
+  SystemConfig config = {};
+  uint32_t     crc    = 0;
+};
+
+[[nodiscard]] auto crc32(const void* data, const size_t len) -> uint32_t
+{
+  const auto*              bytes = static_cast<const uint8_t*>(data);
+  std::span<const uint8_t> s(bytes, len);
+  uint32_t                 crc = 0xFFFFFFFF;
+  for (const auto byte : s)
+  {
+    crc ^= byte;
+    for (int j = 0; j < 8; ++j)
+    {
+      const auto mask = -(crc & 1U);
+      crc             = (crc >> 1U) ^ (0xEDB88320U & mask);
+    }
+  }
+  return ~crc;
+}
 
 struct FlashOpContext
 {
@@ -134,4 +161,44 @@ auto FlashManager::erase(const uint32_t offset, const size_t size) -> bool
   }
 
   return true;
+}
+
+auto FlashManager::loadConfig(SystemConfig& config) -> bool
+{
+  const uint32_t offset = PICO_FLASH_SIZE_BYTES - FLASH_SECTOR_SIZE;
+  FlashRecord    record;
+  if (!readData(offset, std::span(reinterpret_cast<uint8_t*>(&record), sizeof(record))))
+  {
+    return false;
+  }
+
+  if (record.magic != CONFIG_MAGIC)
+  {
+    return false;
+  }
+
+  const uint32_t calculatedCrc = crc32(&record.config, sizeof(record.config));
+  if (calculatedCrc != record.crc)
+  {
+    return false;
+  }
+
+  config = record.config;
+  return true;
+}
+
+auto FlashManager::saveConfig(const SystemConfig& config) -> bool
+{
+  const uint32_t offset = PICO_FLASH_SIZE_BYTES - FLASH_SECTOR_SIZE;
+  FlashRecord    record;
+  record.magic  = CONFIG_MAGIC;
+  record.config = config;
+  record.crc    = crc32(&record.config, sizeof(record.config));
+
+  if (!erase(offset, FLASH_SECTOR_SIZE))
+  {
+    return false;
+  }
+
+  return writeData(offset, std::span(reinterpret_cast<const uint8_t*>(&record), sizeof(record)));
 }

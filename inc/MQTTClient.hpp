@@ -23,7 +23,7 @@ public:
   MQTTClient(MQTTClient&&)                         = delete;
   auto operator=(MQTTClient&&) -> MQTTClient&      = delete;
 
-  [[nodiscard]] auto init() -> bool;
+  [[nodiscard]] auto init(const MqttConfig& config) -> bool;
   void               loop(uint32_t nowMs);
   void               publishSensorState(uint32_t nowMs, const SensorData& data, bool watering, bool force = false);
 
@@ -72,6 +72,7 @@ private:
 
   SensorManager*        sensorManager_;
   IrrigationController* irrigationController_;
+  MqttConfig            config_{};
 
   mqtt_client_t*  mqttClient_{nullptr};
   ip_addr_t       brokerIp_{};

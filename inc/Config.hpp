@@ -22,7 +22,7 @@ constexpr const char*     AP_PASS               = "plantsetup";
 namespace MQTT
 {
 inline constexpr bool        ENABLE      = true;
-inline constexpr const char* BROKER_HOST = "homeassistant.local";
+inline constexpr const char* BROKER_HOST = "192.168.1.155";
 inline constexpr uint16_t    BROKER_PORT = 1883;
 inline constexpr const char* CLIENT_ID   = DEVICE_IDENTIFIER;
 inline constexpr const char* USERNAME    = nullptr;

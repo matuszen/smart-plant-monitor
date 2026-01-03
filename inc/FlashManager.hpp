@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Types.hpp"
+
 #include <cstddef>
 #include <cstdint>
 #include <span>
@@ -19,6 +21,9 @@ public:
   [[nodiscard]] static auto erase(uint32_t offset, size_t size) -> bool;
 
   [[nodiscard]] static auto getFlashAddress(uint32_t offset) -> uint32_t;
+
+  [[nodiscard]] static auto loadConfig(SystemConfig& config) -> bool;
+  [[nodiscard]] static auto saveConfig(const SystemConfig& config) -> bool;
 
 private:
   FlashManager()  = default;

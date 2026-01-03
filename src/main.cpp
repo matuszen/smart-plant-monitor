@@ -1,8 +1,10 @@
 #include "AppTasks.hpp"
 #include "Config.hpp"
+#include "FlashManager.hpp"
 #include "IrrigationController.hpp"
 #include "MQTTClient.hpp"
 #include "SensorManager.hpp"
+#include "Types.hpp"
 #include "WifiProvisioner.hpp"
 
 #include <FreeRTOS.h>
@@ -40,6 +42,13 @@ void initSystem()
   if (not irrigationController.init()) [[unlikely]]
   {
     printf("ERROR: IrrigationController initialization failed!\n");
+  }
+
+  SystemConfig config;
+  if (FlashManager::loadConfig(config))
+  {
+    irrigationController.setMode(config.irrigationMode);
+    printf("Configuration loaded. Irrigation Mode: %d\n", static_cast<int>(config.irrigationMode));
   }
 
   printf("\n=================================================\n");

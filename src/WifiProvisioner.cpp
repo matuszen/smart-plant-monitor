@@ -1,12 +1,13 @@
 #include <pico/cyw43_arch.h>  // IWYU pragma: keep
 
 #include "Config.hpp"
+#include "FlashManager.hpp"
+#include "SensorManager.hpp"
+#include "Types.hpp"
 #include "WifiProvisioner.hpp"
 
 #include "dhcpserver.h"
-#include "web/connecting_page.hpp"
-#include "web/provision_page.hpp"
-#include "web/success_page.hpp"
+#include "web/provision_page.html"
 
 #include <FreeRTOS.h>
 #include <boards/pico2_w.h>
@@ -15,6 +16,7 @@
 #include <hardware/flash.h>
 #include <hardware/regs/addressmap.h>
 #include <hardware/sync.h>
+#include <hardware/watchdog.h>
 #include <lwip/def.h>
 #include <lwip/inet.h>
 #include <lwip/ip4_addr.h>
@@ -26,9 +28,7 @@
 #include <sys/select.h>
 #include <task.h>
 
-#include <algorithm>
 #include <array>
-#include <bit>
 #include <cctype>
 #include <cstddef>
 #include <cstdint>
@@ -38,37 +38,12 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <type_traits>
 
 namespace
 {
 
-inline constexpr uint32_t CRED_FLASH_SECTOR_SIZE{FLASH_SECTOR_SIZE};
-inline constexpr uint32_t CRED_FLASH_MAGIC{0x57'49'46'49};
 inline constexpr uint32_t WIFI_CONNECT_TIMEOUT_MS{30'000};
-
-struct FlashRecord
-{
-  uint32_t        magic{CRED_FLASH_MAGIC};
-  WifiCredentials creds{};
-  uint32_t        crc{0};
-};
-
-[[nodiscard]] auto crc32(const void* data, const size_t len) -> uint32_t
-{
-  const auto*              bytes = static_cast<const uint8_t*>(data);
-  std::span<const uint8_t> s(bytes, len);
-  uint32_t                 crc = 0xFFFFFFFF;
-  for (const auto byte : s)
-  {
-    crc ^= byte;
-    for (int j = 0; j < 8; ++j)
-    {
-      const auto mask = -(crc & 1U);
-      crc             = (crc >> 1U) ^ (0xEDB88320U & mask);
-    }
-  }
-  return ~crc;
-}
 
 void percentDecode(const std::span<char> str)
 {
@@ -101,34 +76,15 @@ void percentDecode(const std::span<char> str)
   }
 }
 
-[[nodiscard]] auto parseFormField(const std::string_view body, const std::string_view key,
-                                  const std::span<char> out) -> bool
-{
-  const auto pos = body.find(key);
-  if (pos == std::string_view::npos)
-  {
-    return false;
-  }
-
-  const auto valueStart = pos + key.length();
-  const auto amp        = body.find('&', valueStart);
-  const auto len        = (amp == std::string_view::npos) ? (body.length() - valueStart) : (amp - valueStart);
-  const auto bytes      = std::min(len, out.size() - 1);
-
-  body.copy(out.data(), bytes, valueStart);
-  out[bytes] = '\0';
-  percentDecode(out.subspan(0, bytes + 1));
-  return true;
-}
-
 [[nodiscard]] auto sendAll(const int32_t client, const std::span<const char> data) -> bool
 {
   size_t sent = 0;
   while (sent < data.size())
   {
     const auto remaining = data.subspan(sent);
-    const auto rc        = lwip_send(client, remaining.data(), static_cast<int>(remaining.size()), 0);
-    if (rc <= 0)
+    const auto chunkSize = std::min(remaining.size(), static_cast<size_t>(1024));
+    const auto rc        = lwip_send(client, remaining.data(), static_cast<int>(chunkSize), 0);
+    if (rc < 0)
     {
       printf("[WiFi] send failed (%d) after %zu/%zu bytes\n", rc, sent, data.size());
       return false;
@@ -160,75 +116,130 @@ void sendResponse(const int32_t client, const std::string_view body, const char*
   }
 }
 
-auto escapeHtml(const char* text) -> std::string
+auto configToJson(const SystemConfig& cfg) -> std::string
 {
-  std::string out;
-  if (text == nullptr)
+  std::array<char, 2048>      buf{};
+  [[maybe_unused]] const auto _ =
+    std::snprintf(buf.data(), buf.size(),
+                  "{"
+                  "\"wifi_ssid\":\"%s\","
+                  "\"wifi_pass\":\"%s\","
+                  "\"ap_ssid\":\"%s\","
+                  "\"ap_pass\":\"%s\","
+                  "\"mqtt_host\":\"%s\","
+                  "\"mqtt_port\":%d,"
+                  "\"mqtt_client_id\":\"%s\","
+                  "\"mqtt_user\":\"%s\","
+                  "\"mqtt_pass\":\"%s\","
+                  "\"mqtt_prefix\":\"%s\","
+                  "\"mqtt_topic\":\"%s\","
+                  "\"mqtt_interval\":%u,"
+                  "\"sensor_interval\":%u,"
+                  "\"irrigation_mode\":%d"
+                  "}",
+                  cfg.wifi.ssid.data(), cfg.wifi.pass.data(), cfg.ap.ssid.data(), cfg.ap.pass.data(),
+                  cfg.mqtt.brokerHost.data(), cfg.mqtt.brokerPort, cfg.mqtt.clientId.data(), cfg.mqtt.username.data(),
+                  cfg.mqtt.password.data(), cfg.mqtt.discoveryPrefix.data(), cfg.mqtt.baseTopic.data(),
+                  cfg.mqtt.publishIntervalMs, cfg.sensorReadIntervalMs, static_cast<int>(cfg.irrigationMode));
+  return {buf.data()};
+}
+
+auto sensorsToJson(SensorManager& sm) -> std::string
+{
+  const auto data = sm.readAllSensors();
+
+  std::array<char, 512>       buf{};
+  [[maybe_unused]] const auto _ =
+    std::snprintf(buf.data(), buf.size(),
+                  "{"
+                  "\"Temperature\":\"%.1f C\","
+                  "\"Humidity\":\"%.1f %% \","
+                  "\"Pressure\":\"%.1f hPa\","
+                  "\"Soil Moisture\":\"%.1f %%\","
+                  "\"Water Level\":\"%.1f %%\","
+                  "\"Light\":\"%.1f lux\""
+                  "}",
+                  static_cast<double>(data.environment.temperature), static_cast<double>(data.environment.humidity),
+                  static_cast<double>(data.environment.pressure), static_cast<double>(data.soil.percentage),
+                  static_cast<double>(data.water.percentage), static_cast<double>(data.light.lux));
+  return {buf.data()};
+}
+
+auto getJsonValue(std::string_view json, std::string_view key) -> std::string
+{
+  const std::string keyStr = "\"" + std::string(key) + "\"";
+  auto              keyPos = json.find(keyStr);
+  if (keyPos == std::string::npos)
   {
-    return out;
+    return "";
+  }
+  auto colonPos = json.find(':', keyPos);
+  if (colonPos == std::string::npos)
+  {
+    return "";
+  }
+  auto valueStart = json.find_first_not_of(" \t\n\r", colonPos + 1);
+  if (valueStart == std::string::npos)
+  {
+    return "";
   }
 
-  const std::string_view view(text);
-  for (const char c : view)
+  if (json[valueStart] == '"')
   {
-    switch (c)
+    auto valueEnd = json.find('"', valueStart + 1);
+    return std::string(json.substr(valueStart + 1, valueEnd - valueStart - 1));
+  }
+
+  auto valueEnd = json.find_first_of(",}", valueStart);
+  return std::string(json.substr(valueStart, valueEnd - valueStart));
+}
+
+void updateConfigFromJson(SystemConfig& cfg, std::string_view json)
+{
+  auto copyStr = [&](auto& dest, std::string_view key)
+  {
+    std::string val = getJsonValue(json, key);
+    if (!val.empty())
     {
-      case '&':
-        out += "&amp;";
-        break;
-      case '<':
-        out += "&lt;";
-        break;
-      case '>':
-        out += "&gt;";
-        break;
-      case '"':
-        out += "&quot;";
-        break;
-      case '\'':
-        out += "&#39;";
-        break;
-      default:
-        out.push_back(c);
-        break;
+      std::strncpy(dest.data(), val.c_str(), dest.size() - 1);
     }
-  }
-  return out;
-}
+  };
 
-auto maskPassword(const WifiCredentials& creds) -> std::string
-{
-  const auto len = std::strlen(creds.pass.data());
-  return std::string(len, '*');
-}
-
-auto renderCurrentBlock(const WifiCredentials& stored) -> std::string
-{
-  if (not stored.valid)
+  auto copyInt = [&](auto& dest, std::string_view key)
   {
-    return std::string{"No stored credentials"};
-  }
+    std::string val = getJsonValue(json, key);
+    if (!val.empty())
+    {
+      dest = static_cast<std::remove_reference_t<decltype(dest)>>(std::strtoul(val.c_str(), nullptr, 10));
+    }
+  };
 
-  std::string block;
-  block += "SSID: ";
-  block += escapeHtml(stored.ssid.data());
-  block += "<br>Password: ";
-  block += maskPassword(stored);
-  block += "<br><button type=\"button\" onclick=\"useStored()\">Use & Connect</button>";
-  return block;
-}
-
-auto buildProvisionPage(const WifiCredentials& stored) -> std::string
-{
-  std::string       page{PROVISION_PAGE_HTML};
-  const std::string placeholder{"{{CURRENT_BLOCK}}"};
-  const auto        block = renderCurrentBlock(stored);
-  const auto        pos   = page.find(placeholder);
-  if (pos != std::string::npos)
+  copyStr(cfg.wifi.ssid, "wifi_ssid");
+  copyStr(cfg.wifi.pass, "wifi_pass");
+  if (!cfg.wifi.ssid.empty())
   {
-    page.replace(pos, placeholder.size(), block);
+    cfg.wifi.valid = true;
   }
-  return page;
+
+  copyStr(cfg.ap.ssid, "ap_ssid");
+  copyStr(cfg.ap.pass, "ap_pass");
+
+  copyStr(cfg.mqtt.brokerHost, "mqtt_host");
+  copyInt(cfg.mqtt.brokerPort, "mqtt_port");
+  copyStr(cfg.mqtt.clientId, "mqtt_client_id");
+  copyStr(cfg.mqtt.username, "mqtt_user");
+  copyStr(cfg.mqtt.password, "mqtt_pass");
+  copyStr(cfg.mqtt.discoveryPrefix, "mqtt_prefix");
+  copyStr(cfg.mqtt.baseTopic, "mqtt_topic");
+  copyInt(cfg.mqtt.publishIntervalMs, "mqtt_interval");
+
+  copyInt(cfg.sensorReadIntervalMs, "sensor_interval");
+
+  std::string modeStr = getJsonValue(json, "irrigation_mode");
+  if (!modeStr.empty())
+  {
+    cfg.irrigationMode = static_cast<IrrigationMode>(std::stoi(modeStr));
+  }
 }
 
 void applyHostname(const char* hostname)
@@ -271,10 +282,9 @@ void logNetifInfo(const char* label, const netif* nif)
          (gwBuf[0] != '\0') ? gwBuf.data() : "n/a", (maskBuf[0] != '\0') ? maskBuf.data() : "n/a");
 }
 
-auto handleClientRequest(const int32_t client, WifiCredentials& creds, const WifiCredentials& stored,
-                         bool& useStoredRequested) -> bool
+auto handleClientRequest(const int32_t client, SystemConfig& config, bool& rebootRequested, SensorManager& sm) -> bool
 {
-  std::array<char, 1024> buf{};
+  std::array<char, 2048> buf{};
   const auto             len = lwip_recv(client, buf.data(), buf.size() - 1, 0);
   if (len <= 0)
   {
@@ -288,7 +298,6 @@ auto handleClientRequest(const int32_t client, WifiCredentials& creds, const Wif
   const auto             firstLineEnd = request.find("\r\n");
   if (firstLineEnd == std::string_view::npos)
   {
-    sendResponse(client, buildProvisionPage(stored));
     return false;
   }
 
@@ -298,52 +307,50 @@ auto handleClientRequest(const int32_t client, WifiCredentials& creds, const Wif
     (methodEnd != std::string_view::npos) ? firstLine.find(' ', methodEnd + 1) : std::string_view::npos;
   if ((methodEnd == std::string_view::npos) or (pathEnd == std::string_view::npos))
   {
-    sendResponse(client, buildProvisionPage(stored));
     return false;
   }
 
   const auto method = firstLine.substr(0, methodEnd);
   const auto path   = firstLine.substr(methodEnd + 1, pathEnd - methodEnd - 1);
 
-  const auto bodyPos = request.find("\r\n\r\n");
-  const auto body    = (bodyPos != std::string_view::npos) ? request.substr(bodyPos + 4) : std::string_view{};
+  printf("[WiFi] Method: %.*s, Path: %.*s\n", (int)method.length(), method.data(), (int)path.length(), path.data());
 
-  const bool isPost = (method == "POST");
-
-  if (isPost and (path == "/use-stored"))
+  if (method == "GET")
   {
-    if (stored.valid)
+    if (path == "/")
     {
-      useStoredRequested = true;
-      sendResponse(client, CONNECTING_PAGE_HTML);
-      return true;
+      sendResponse(client, PROVISION_PAGE_HTML);
     }
-    sendResponse(client, buildProvisionPage(stored));
-    return false;
+    else if (path == "/api/config")
+    {
+      sendResponse(client, configToJson(config), "application/json");
+    }
+    else if (path == "/api/sensors")
+    {
+      sendResponse(client, sensorsToJson(sm), "application/json");
+    }
+    else
+    {
+      sendResponse(client, "Not Found", "text/plain");
+    }
+  }
+  else if (method == "POST")
+  {
+    if (path == "/api/config")
+    {
+      const auto bodyPos = request.find("\r\n\r\n");
+      if (bodyPos != std::string_view::npos)
+      {
+        const auto body = request.substr(bodyPos + 4);
+        updateConfigFromJson(config, body);
+        [[maybe_unused]] const auto _ = FlashManager::saveConfig(config);
+        sendResponse(client, R"({"status":"ok"})", "application/json");
+        rebootRequested = true;
+      }
+    }
   }
 
-  if (isPost and (path == "/"))
-  {
-    WifiCredentials incoming{};
-    const auto      ssidParsed = parseFormField(body, "ssid=", std::span(incoming.ssid));
-    const auto      passParsed = parseFormField(body, "pass=", std::span(incoming.pass));
-    incoming.valid             = ssidParsed and (incoming.ssid[0] != '\0');
-    if (not passParsed)
-    {
-      incoming.pass[0] = '\0';
-    }
-    if (incoming.valid)
-    {
-      creds = incoming;
-      sendResponse(client, SUCCESS_PAGE_HTML);
-      return true;
-    }
-    sendResponse(client, buildProvisionPage(stored));
-    return false;
-  }
-
-  sendResponse(client, buildProvisionPage(stored));
-  return false;
+  return true;
 }
 
 }  // namespace
@@ -365,50 +372,6 @@ auto WifiProvisioner::init() -> bool
   cyw43_arch_enable_sta_mode();
   initialized_ = true;
   return true;
-}
-
-auto WifiProvisioner::loadStoredCredentials() -> WifiCredentials
-{
-  WifiCredentials creds{};
-  const auto*     flashAddr = std::bit_cast<const uint8_t*>(XIP_BASE + flashStorageOffset());
-
-  FlashRecord record;
-  std::memcpy(&record, flashAddr, sizeof(record));
-
-  if (record.magic != CRED_FLASH_MAGIC)
-  {
-    return creds;
-  }
-
-  const auto computed = crc32(&record.creds, sizeof(WifiCredentials));
-  if (computed != record.crc) [[unlikely]]
-  {
-    return creds;
-  }
-
-  creds       = record.creds;
-  creds.valid = (creds.ssid[0] != '\0');
-  return creds;
-}
-
-void WifiProvisioner::storeCredentials(const WifiCredentials& creds)
-{
-  FlashRecord record{};
-  record.magic = CRED_FLASH_MAGIC;
-  record.creds = creds;
-  record.crc   = crc32(&record.creds, sizeof(WifiCredentials));
-
-  static_assert(sizeof(FlashRecord) <= CRED_FLASH_SECTOR_SIZE, "FlashRecord must fit within a single flash sector");
-
-  std::array<uint8_t, CRED_FLASH_SECTOR_SIZE> page{};
-  std::ranges::fill(page, 0xFF);
-  std::memcpy(page.data(), &record, sizeof(record));
-
-  const auto addr = flashStorageOffset();
-  const auto ints = save_and_disable_interrupts();
-  flash_range_erase(addr, CRED_FLASH_SECTOR_SIZE);
-  flash_range_program(addr, page.data(), page.size());
-  restore_interrupts(ints);
 }
 
 auto WifiProvisioner::connectSta(const WifiCredentials& creds) -> bool
@@ -443,18 +406,13 @@ auto WifiProvisioner::connectSta(const WifiCredentials& creds) -> bool
   return true;
 }
 
-auto WifiProvisioner::startApAndServe(const uint32_t             timeoutMs,
-                                      const volatile bool* const cancelFlag) -> WifiCredentials
+auto WifiProvisioner::startApAndServe(const uint32_t timeoutMs, SensorManager& sensorManager,
+                                      const volatile bool* const cancelFlag) -> bool
 {
-  WifiCredentials creds{};
-
-  const auto storedCreds = loadStoredCredentials();
-  bool       useStored   = false;
-
   if (not init())
   {
     provisioning_ = false;
-    return creds;
+    return false;
   }
 
   provisioning_ = true;
@@ -462,8 +420,17 @@ auto WifiProvisioner::startApAndServe(const uint32_t             timeoutMs,
 
   cyw43_arch_disable_sta_mode();
 
-  printf("[WiFi] Starting AP '%s'...\n", Config::AP_SSID);
-  cyw43_arch_enable_ap_mode(Config::AP_SSID, Config::AP_PASS, CYW43_AUTH_WPA2_AES_PSK);
+  SystemConfig config;
+  if (!FlashManager::loadConfig(config))
+  {
+    config = {};
+  }
+
+  const char* apSsid = (config.ap.ssid[0] != '\0') ? config.ap.ssid.data() : Config::AP_SSID;
+  const char* apPass = (config.ap.pass[0] != '\0') ? config.ap.pass.data() : Config::AP_PASS;
+
+  printf("[WiFi] Starting AP '%s'...\n", apSsid);
+  cyw43_arch_enable_ap_mode(apSsid, apPass, CYW43_AUTH_WPA2_AES_PSK);
 
   ip4_addr_t gw;
   ip4_addr_t mask;
@@ -482,7 +449,7 @@ auto WifiProvisioner::startApAndServe(const uint32_t             timeoutMs,
   {
     printf("[WiFi] Socket create failed\n");
     provisioning_ = false;
-    return creds;
+    return false;
   }
 
   sockaddr_in addr{};
@@ -493,7 +460,8 @@ auto WifiProvisioner::startApAndServe(const uint32_t             timeoutMs,
   lwip_bind(server, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr));
   lwip_listen(server, 2);
 
-  const auto startMs = to_ms_since_boot(get_absolute_time());
+  const auto startMs         = to_ms_since_boot(get_absolute_time());
+  bool       rebootRequested = false;
 
   while (true)
   {
@@ -541,10 +509,13 @@ auto WifiProvisioner::startApAndServe(const uint32_t             timeoutMs,
       .tv_usec = 0,
     };
     lwip_setsockopt(client, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+    lwip_setsockopt(client, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
 
-    if (handleClientRequest(client, creds, storedCreds, useStored))
+    handleClientRequest(client, config, rebootRequested, sensorManager);
+
+    if (rebootRequested)
     {
-      vTaskDelay(pdMS_TO_TICKS(100));
+      vTaskDelay(pdMS_TO_TICKS(500));
       lwip_close(client);
       break;
     }
@@ -556,15 +527,6 @@ auto WifiProvisioner::startApAndServe(const uint32_t             timeoutMs,
   dhcp_server_deinit(&dhcpServer);
   cyw43_arch_disable_ap_mode();
   provisioning_ = false;
-  // STA will be re-enabled by connectSta()
-  if (useStored and storedCreds.valid)
-  {
-    creds = storedCreds;
-  }
-  return creds;
-}
 
-auto WifiProvisioner::flashStorageOffset() -> uint32_t
-{
-  return PICO_FLASH_SIZE_BYTES - CRED_FLASH_SECTOR_SIZE;
+  return rebootRequested;
 }
