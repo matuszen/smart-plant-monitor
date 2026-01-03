@@ -19,16 +19,20 @@ inline constexpr uint32_t AP_SESSION_TIMEOUT_MS = 600'000;
 constexpr const char*     AP_SSID               = "PlantMonitor-Setup";
 constexpr const char*     AP_PASS               = "plantsetup";
 
-inline constexpr bool        ENABLE_HOME_ASSISTANT    = true;
-inline constexpr const char* MQTT_BROKER_HOST         = "192.168.1.10";
-inline constexpr uint16_t    MQTT_BROKER_PORT         = 1883;
-inline constexpr const char* MQTT_CLIENT_ID           = DEVICE_IDENTIFIER;
-inline constexpr const char* MQTT_USERNAME            = nullptr;
-inline constexpr const char* MQTT_PASSWORD            = nullptr;
-inline constexpr const char* HA_DISCOVERY_PREFIX      = "homeassistant";
-inline constexpr const char* HA_BASE_TOPIC            = "smartplant";
-inline constexpr uint32_t    HA_PUBLISH_INTERVAL_MS   = 15'000;
-inline constexpr uint32_t    HA_RECONNECT_INTERVAL_MS = 5'000;
+namespace MQTT
+{
+inline constexpr bool        ENABLE      = true;
+inline constexpr const char* BROKER_HOST = "homeassistant.local";
+inline constexpr uint16_t    BROKER_PORT = 1883;
+inline constexpr const char* CLIENT_ID   = DEVICE_IDENTIFIER;
+inline constexpr const char* USERNAME    = nullptr;
+inline constexpr const char* PASSWORD    = nullptr;
+
+inline constexpr const char* DISCOVERY_PREFIX            = "homeassistant";
+inline constexpr const char* BASE_TOPIC                  = "smartplant";
+inline constexpr uint32_t    DEFAULT_PUBLISH_INTERVAL_MS = 3'600'000;
+inline constexpr uint32_t    RECONNECT_INTERVAL_MS       = 5'000;
+}  // namespace MQTT
 
 inline constexpr uint8_t  BME280_I2C_INSTANCE = 0;
 inline constexpr uint8_t  BME280_SDA_PIN      = 4;

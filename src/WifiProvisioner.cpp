@@ -9,10 +9,6 @@
 #include "web/success_page.hpp"
 
 #include <FreeRTOS.h>
-#include <cstring>
-#include <projdefs.h>
-#include <task.h>
-
 #include <boards/pico2_w.h>
 #include <cyw43.h>
 #include <cyw43_ll.h>
@@ -25,8 +21,10 @@
 #include <lwip/netif.h>
 #include <lwip/sockets.h>
 #include <pico/time.h>
+#include <projdefs.h>
 #include <sys/_timeval.h>
 #include <sys/select.h>
+#include <task.h>
 
 #include <algorithm>
 #include <array>
@@ -36,6 +34,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <span>
 #include <string>
 #include <string_view>

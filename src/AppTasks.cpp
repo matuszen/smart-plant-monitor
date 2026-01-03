@@ -1,7 +1,7 @@
 #include "AppTasks.hpp"
 #include "Config.hpp"
-#include "HomeAssistantClient.hpp"
 #include "IrrigationController.hpp"
+#include "MQTTClient.hpp"
 #include "SensorManager.hpp"
 #include "Types.hpp"
 #include "WifiProvisioner.hpp"
@@ -45,43 +45,11 @@ extern "C"
   }
 }
 
-inline constexpr UBaseType_t SENSOR_TASK_PRIORITY{tskIDLE_PRIORITY + 2};
-inline constexpr UBaseType_t IRRIGATION_TASK_PRIORITY{tskIDLE_PRIORITY + 1};
-inline constexpr UBaseType_t WIFI_PROV_PRIORITY{tskIDLE_PRIORITY + 1};
-inline constexpr UBaseType_t BUTTON_TASK_PRIORITY{tskIDLE_PRIORITY + 4};
-inline constexpr UBaseType_t LED_TASK_PRIORITY{tskIDLE_PRIORITY + 1};
-
-inline constexpr uint16_t SENSOR_TASK_STACK{2048};
-inline constexpr uint16_t IRRIGATION_TASK_STACK{1024};
-inline constexpr uint16_t WIFI_PROV_STACK{2048};
-inline constexpr uint16_t BUTTON_TASK_STACK{768};
-inline constexpr uint16_t LED_TASK_STACK{768};
-
-enum class WifiCommand : uint8_t
-{
-  START_PROVISIONING = 0,
-  REBOOT             = 1
-};
-
-enum class NetworkLedState : uint8_t
-{
-  OFF,
-  CONNECTING,
-  PROVISIONING,
-  CONNECTED
-};
-
-struct LedSharedState
-{
-  bool            errorOn{false};
-  NetworkLedState network{NetworkLedState::OFF};
-};
-
-QueueHandle_t     wifiCommandQueue{nullptr};
-SemaphoreHandle_t ledStateMutex{nullptr};
 LedSharedState    ledShared{};
-volatile bool     apActiveFlag{false};
-volatile bool     apCancelFlag{false};
+QueueHandle_t     wifiCommandQueue = nullptr;
+SemaphoreHandle_t ledStateMutex    = nullptr;
+volatile bool     apActiveFlag     = false;
+volatile bool     apCancelFlag     = false;
 
 [[nodiscard]] inline auto nowMs() -> uint32_t
 {
@@ -245,16 +213,17 @@ void updateErrorLedFromData(const SensorData& data)
   setErrorLedState(waterLow or sensorsBad);
 }
 
-void ledTask(void* /*params*/)
+void ledTask(void* const /*params*/)
 {
-  uint32_t lastStatusToggle{0};
-  uint32_t lastNetworkToggle{0};
-  bool     statusOn{false};
-  bool     networkOn{false};
+  bool statusOn  = false;
+  bool networkOn = false;
 
-  constexpr uint32_t statusPeriodMs{500};
-  constexpr uint32_t connectBlinkMs{400};
-  constexpr uint32_t provisionBlinkMs{150};
+  uint32_t lastStatusToggle  = 0;
+  uint32_t lastNetworkToggle = 0;
+
+  constexpr uint32_t statusPeriodMs   = 500;
+  constexpr uint32_t connectBlinkMs   = 400;
+  constexpr uint32_t provisionBlinkMs = 150;
 
   while (true)
   {
@@ -301,7 +270,7 @@ void ledTask(void* /*params*/)
   }
 }
 
-void handleButtonRelease(uint32_t heldMs, bool& rebootSent)
+void handleButtonRelease(const uint32_t heldMs, bool& rebootSent)
 {
   if (rebootSent)
   {
@@ -326,7 +295,7 @@ void handleButtonRelease(uint32_t heldMs, bool& rebootSent)
   }
 }
 
-void handleButtonHold(uint32_t heldMs, bool& rebootSent)
+void handleButtonHold(const uint32_t heldMs, bool& rebootSent)
 {
   if (heldMs >= Config::BUTTON_REBOOT_MS)
   {
@@ -341,7 +310,7 @@ void handleButtonHold(uint32_t heldMs, bool& rebootSent)
   }
 }
 
-void buttonTask(void* /*params*/)
+void buttonTask(void* const /*params*/)
 {
   bool     pressed{false};
   bool     rebootSent{false};
@@ -371,8 +340,8 @@ void buttonTask(void* /*params*/)
   }
 }
 
-void handleSensorRead(uint32_t now, SensorManager& sensorManager, IrrigationController& irrigationController,
-                      HomeAssistantClient& haClient)
+void handleSensorRead(const uint32_t now, SensorManager& sensorManager, IrrigationController& irrigationController,
+                      MQTTClient& haClient)
 {
   printf("[%u] Reading sensors...\n", now);
 
@@ -387,25 +356,25 @@ void handleSensorRead(uint32_t now, SensorManager& sensorManager, IrrigationCont
 
   irrigationController.update(data);
 
-  if constexpr (Config::ENABLE_HOME_ASSISTANT)
+  if constexpr (Config::MQTT::ENABLE)
   {
     haClient.publishSensorState(now, data, irrigationController.isWatering());
   }
 }
 
-void sensorTask(void* params)
+void sensorTask(void* const params)
 {
-  auto& ctx                  = *static_cast<HomeAssistantClient*>(params);
+  auto& ctx                  = *static_cast<MQTTClient*>(params);
   auto& sensorManager        = *ctx.getSensorManager();
   auto& irrigationController = *ctx.getIrrigationController();
 
-  uint32_t           lastSensorRead   = Config::DEFAULT_SENSOR_READ_INTERVAL_MS;
+  auto               lastSensorRead   = Config::DEFAULT_SENSOR_READ_INTERVAL_MS;
   constexpr uint32_t sensorTaskTickMs = 100;
 
   while (true)
   {
     const auto now = nowMs();
-    if constexpr (Config::ENABLE_HOME_ASSISTANT)
+    if constexpr (Config::MQTT::ENABLE)
     {
       ctx.loop(now);
     }
@@ -420,7 +389,7 @@ void sensorTask(void* params)
   }
 }
 
-void irrigationTask(void* params)
+void irrigationTask(void* const params)
 {
   auto& irrigationController = *static_cast<IrrigationController*>(params);
   while (true)
@@ -431,14 +400,7 @@ void irrigationTask(void* params)
   }
 }
 
-struct ProvisionContext
-{
-  WifiProvisioner*     provisioner{};
-  HomeAssistantClient* haClient{};
-  QueueHandle_t        queue{};
-};
-
-void processWifiCommand(WifiCommand cmd, ProvisionContext* ctx, bool& connected, bool& apActive)
+void processWifiCommand(const WifiCommand cmd, ProvisionContext* const ctx, bool& connected, bool& apActive)
 {
   switch (cmd)
   {
@@ -469,9 +431,9 @@ void processWifiCommand(WifiCommand cmd, ProvisionContext* ctx, bool& connected,
         WifiProvisioner::storeCredentials(newCreds);
         connected = ctx->provisioner->connectSta(newCreds);
         ctx->haClient->setWifiReady(connected);
-        if constexpr (Config::ENABLE_HOME_ASSISTANT)
+        if constexpr (Config::MQTT::ENABLE)
         {
-          ctx->haClient->init();
+          const auto _ = ctx->haClient->init();
         }
       }
       else
@@ -494,7 +456,7 @@ void processWifiCommand(WifiCommand cmd, ProvisionContext* ctx, bool& connected,
   }
 }
 
-void wifiProvisionTask(void* params)
+void wifiProvisionTask(void* const params)
 {
   auto* ctx = static_cast<ProvisionContext*>(params);
   if ((ctx == nullptr) or (ctx->provisioner == nullptr) or (ctx->haClient == nullptr)) [[unlikely]]
@@ -511,9 +473,9 @@ void wifiProvisionTask(void* params)
   if (connected)
   {
     ctx->haClient->setWifiReady(true);
-    if constexpr (Config::ENABLE_HOME_ASSISTANT)
+    if constexpr (Config::MQTT::ENABLE)
     {
-      ctx->haClient->init();
+      const auto _ = ctx->haClient->init();
     }
     setNetworkLedState(NetworkLedState::CONNECTED);
   }
@@ -538,10 +500,8 @@ void wifiProvisionTask(void* params)
 
 }  // namespace
 
-void startAppTasks(SensorManager& sensorManager, IrrigationController& irrigationController,
-                   HomeAssistantClient& haClient, WifiProvisioner& provisioner)
+void startAppTasks(IrrigationController& irrigationController, MQTTClient& mqttClient, WifiProvisioner& provisioner)
 {
-  haClient.setControllers(&sensorManager, &irrigationController);
   initUserInterfacePins();
 
   blinkErrorBlocking(3);
@@ -553,17 +513,18 @@ void startAppTasks(SensorManager& sensorManager, IrrigationController& irrigatio
     printf("[AppTasks] Failed to create synchronization primitives\n");
   }
 
-  static ProvisionContext ctx{};
-  ctx.provisioner = &provisioner;
-  ctx.haClient    = &haClient;
-  ctx.queue       = wifiCommandQueue;
+  static auto ctx = ProvisionContext{
+    .provisioner = &provisioner,
+    .haClient    = &mqttClient,
+    .queue       = wifiCommandQueue,
+  };
 
   xTaskCreate(wifiProvisionTask, "wifiProv", WIFI_PROV_STACK, &ctx, WIFI_PROV_PRIORITY, nullptr);
 
   xTaskCreate(buttonTask, "button", BUTTON_TASK_STACK, nullptr, BUTTON_TASK_PRIORITY, nullptr);
   xTaskCreate(ledTask, "leds", LED_TASK_STACK, nullptr, LED_TASK_PRIORITY, nullptr);
 
-  xTaskCreate(sensorTask, "sensorTask", SENSOR_TASK_STACK, &haClient, SENSOR_TASK_PRIORITY, nullptr);
+  xTaskCreate(sensorTask, "sensorTask", SENSOR_TASK_STACK, &mqttClient, SENSOR_TASK_PRIORITY, nullptr);
   xTaskCreate(irrigationTask, "irrigationTask", IRRIGATION_TASK_STACK, &irrigationController, IRRIGATION_TASK_PRIORITY,
               nullptr);
 

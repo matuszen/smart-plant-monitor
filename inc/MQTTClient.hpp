@@ -1,5 +1,7 @@
 #pragma once
 
+#include "IrrigationController.hpp"
+#include "SensorManager.hpp"
 #include "Types.hpp"
 
 #include <lwip/apps/mqtt.h>
@@ -8,30 +10,22 @@
 
 #include <array>
 #include <cstdint>
+#include <string_view>
 
-class SensorManager;
-class IrrigationController;
-
-class HomeAssistantClient final
+class MQTTClient final
 {
 public:
-  HomeAssistantClient(SensorManager* sensorManager, IrrigationController* irrigationController);
-  ~HomeAssistantClient();
+  MQTTClient(SensorManager* sensorManager, IrrigationController* irrigationController);
+  ~MQTTClient();
 
-  HomeAssistantClient(const HomeAssistantClient&)                    = delete;
-  auto operator=(const HomeAssistantClient&) -> HomeAssistantClient& = delete;
-  HomeAssistantClient(HomeAssistantClient&&)                         = delete;
-  auto operator=(HomeAssistantClient&&) -> HomeAssistantClient&      = delete;
+  MQTTClient(const MQTTClient&)                    = delete;
+  auto operator=(const MQTTClient&) -> MQTTClient& = delete;
+  MQTTClient(MQTTClient&&)                         = delete;
+  auto operator=(MQTTClient&&) -> MQTTClient&      = delete;
 
-  auto init() -> bool;
-  void loop(uint32_t nowMs);
-  void publishSensorState(uint32_t nowMs, const SensorData& data, bool watering, bool force = false);
-
-  void setControllers(SensorManager* sensorManager, IrrigationController* irrigationController)
-  {
-    sensorManager_        = sensorManager;
-    irrigationController_ = irrigationController;
-  }
+  [[nodiscard]] auto init() -> bool;
+  void               loop(uint32_t nowMs);
+  void               publishSensorState(uint32_t nowMs, const SensorData& data, bool watering, bool force = false);
 
   [[nodiscard]] auto getSensorManager() const noexcept -> SensorManager*
   {
@@ -49,19 +43,27 @@ public:
   }
 
 private:
+  enum class ConnectionState : uint8_t
+  {
+    DISCONNECTED,
+    RESOLVING_DNS,
+    CONNECTING,
+    CONNECTED
+  };
+
   void ensureMqtt(uint32_t nowMs);
   void publishDiscovery();
   void publishAvailability(bool online);
-  void publishSensorDiscovery(const char* component, const char* objectId, const char* name, const char* valueTemplate,
-                              const char* unit, const char* deviceClass = nullptr);
+  void publishSensorDiscovery(std::string_view component, std::string_view objectId, std::string_view name,
+                              std::string_view valueTemplate, std::string_view unit, std::string_view deviceClass = {});
   void publishSwitchDiscovery();
 
   void connectMqtt();
   void subscribeToCommands();
-  void handleCommand(const char* payload);
+  void handleCommand(std::string_view payload);
 
-  auto resolveBrokerIp() -> bool;
-  void handleDnsResult(const ip_addr_t* result);
+  [[nodiscard]] auto resolveBrokerIp() -> bool;
+  void               handleDnsResult(const ip_addr_t* result);
 
   static void mqttConnectionCb(mqtt_client_t* client, void* arg, mqtt_connection_status_t status);
   static void mqttIncomingPublishCb(void* arg, const char* topic, uint32_t tot_len);
@@ -71,12 +73,12 @@ private:
   SensorManager*        sensorManager_;
   IrrigationController* irrigationController_;
 
-  mqtt_client_t* mqttClient_{nullptr};
-  ip_addr_t      brokerIp_{};
-  bool           brokerIpValid_{false};
-  bool           wifiReady_{false};
-  bool           mqttConnected_{false};
-  bool           discoveryPublished_{false};
+  mqtt_client_t*  mqttClient_{nullptr};
+  ip_addr_t       brokerIp_{};
+  bool            brokerIpValid_{false};
+  bool            wifiReady_{false};
+  ConnectionState connectionState_{ConnectionState::DISCONNECTED};
+  bool            discoveryPublished_{false};
 
   uint32_t lastMqttAttempt_{0};
   uint32_t lastPublish_{0};

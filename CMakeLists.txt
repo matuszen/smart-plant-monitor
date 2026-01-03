@@ -47,7 +47,7 @@ set(SOURCES
     src/IrrigationController.cpp
     src/WaterLevelSensor.cpp
     src/LightSensor.cpp
-    src/HomeAssistantClient.cpp
+    src/MQTTClient.cpp
     src/SoilMoistureSensor.cpp
     src/AppTasks.cpp
     src/WifiProvisioner.cpp
@@ -61,6 +61,7 @@ target_link_libraries(smart_plant_monitor
     pico_stdlib
     pico_cyw43_arch_lwip_sys_freertos
     pico_lwip_mqtt
+    pico_lwip_mdns
     hardware_adc
     hardware_i2c
     hardware_gpio

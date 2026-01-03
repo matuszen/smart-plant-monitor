@@ -1,7 +1,7 @@
 #include "AppTasks.hpp"
 #include "Config.hpp"
-#include "HomeAssistantClient.hpp"
 #include "IrrigationController.hpp"
+#include "MQTTClient.hpp"
 #include "SensorManager.hpp"
 #include "WifiProvisioner.hpp"
 
@@ -21,7 +21,7 @@ namespace
 
 SensorManager        sensorManager;
 IrrigationController irrigationController(&sensorManager);
-HomeAssistantClient  haClient(&sensorManager, &irrigationController);
+MQTTClient           mqttClient(&sensorManager, &irrigationController);
 WifiProvisioner      wifiProvisioner;
 
 void initSystem()
@@ -67,7 +67,7 @@ auto main() -> int
   }
 
   initSystem();
-  startAppTasks(sensorManager, irrigationController, haClient, wifiProvisioner);
+  startAppTasks(irrigationController, mqttClient, wifiProvisioner);
 
   while (true)
   {
