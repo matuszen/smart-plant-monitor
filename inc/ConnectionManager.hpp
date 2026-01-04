@@ -5,16 +5,16 @@
 
 #include <cstdint>
 
-class WifiProvisioner
+class ConnectionManager
 {
 public:
-  WifiProvisioner()  = default;
-  ~WifiProvisioner() = default;
+  ConnectionManager()  = default;
+  ~ConnectionManager() = default;
 
-  WifiProvisioner(const WifiProvisioner&)                    = delete;
-  auto operator=(const WifiProvisioner&) -> WifiProvisioner& = delete;
-  WifiProvisioner(WifiProvisioner&&)                         = delete;
-  auto operator=(WifiProvisioner&&) -> WifiProvisioner&      = delete;
+  ConnectionManager(const ConnectionManager&)                    = delete;
+  auto operator=(const ConnectionManager&) -> ConnectionManager& = delete;
+  ConnectionManager(ConnectionManager&&)                         = delete;
+  auto operator=(ConnectionManager&&) -> ConnectionManager&      = delete;
 
   [[nodiscard]] auto init() -> bool;
 

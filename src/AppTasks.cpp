@@ -1,11 +1,11 @@
 #include "AppTasks.hpp"
 #include "Config.hpp"
+#include "ConnectionManager.hpp"
 #include "FlashManager.hpp"
 #include "IrrigationController.hpp"
 #include "MQTTClient.hpp"
 #include "SensorManager.hpp"
 #include "Types.hpp"
-#include "WifiProvisioner.hpp"
 
 #include <FreeRTOS.h>
 #include <hardware/gpio.h>
@@ -484,12 +484,12 @@ void wifiProvisionTask(void* const params)
   setNetworkLedState(NetworkLedState::CONNECTING);
 
   SystemConfig config;
-  if (!FlashManager::loadConfig(config))
+  if (not FlashManager::loadConfig(config))
   {
     config = {};
   }
 
-  bool connected = ctx->provisioner->connectSta(config.wifi);
+  auto connected = ctx->provisioner->connectSta(config.wifi);
 
   bool apActive = false;
   apActiveFlag  = false;
@@ -523,7 +523,7 @@ void wifiProvisionTask(void* const params)
 
 }  // namespace
 
-void startAppTasks(IrrigationController& irrigationController, MQTTClient& mqttClient, WifiProvisioner& provisioner)
+void startAppTasks(IrrigationController& irrigationController, MQTTClient& mqttClient, ConnectionManager& provisioner)
 {
   initUserInterfacePins();
 

@@ -1,10 +1,10 @@
 #include <pico/cyw43_arch.h>  // IWYU pragma: keep
 
 #include "Config.hpp"
+#include "ConnectionManager.hpp"
 #include "FlashManager.hpp"
 #include "SensorManager.hpp"
 #include "Types.hpp"
-#include "WifiProvisioner.hpp"
 
 #include "dhcpserver.h"
 #include "web/provision_page.html"
@@ -28,6 +28,7 @@
 #include <sys/select.h>
 #include <task.h>
 
+#include <algorithm>
 #include <array>
 #include <cctype>
 #include <cstddef>
@@ -54,7 +55,7 @@ void percentDecode(const std::span<char> str)
     if (str[r] == '+')
     {
       str[w++] = ' ';
-      r++;
+      ++r;
     }
     else if (str[r] == '%' and (r + 2 < str.size()) and std::isxdigit(static_cast<unsigned char>(str[r + 1])) and
              std::isxdigit(static_cast<unsigned char>(str[r + 2])))
@@ -82,8 +83,8 @@ void percentDecode(const std::span<char> str)
   while (sent < data.size())
   {
     const auto remaining = data.subspan(sent);
-    const auto chunkSize = std::min(remaining.size(), static_cast<size_t>(1024));
-    const auto rc        = lwip_send(client, remaining.data(), static_cast<int>(chunkSize), 0);
+    const auto chunkSize = std::min(remaining.size(), static_cast<size_t>(1'024));
+    const auto rc        = lwip_send(client, remaining.data(), static_cast<int32_t>(chunkSize), 0);
     if (rc < 0)
     {
       printf("[WiFi] send failed (%d) after %zu/%zu bytes\n", rc, sent, data.size());
@@ -94,7 +95,7 @@ void percentDecode(const std::span<char> str)
   return true;
 }
 
-void sendResponse(const int32_t client, const std::string_view body, const char* contentType = "text/html")
+void sendResponse(const int32_t client, const std::string_view body, const char* const contentType = "text/html")
 {
   printf("[WiFi] Sending response (%zu bytes)...\n", body.size());
   std::array<char, 256> header{};
@@ -103,12 +104,12 @@ void sendResponse(const int32_t client, const std::string_view body, const char*
                   "HTTP/1.1 200 OK\r\nContent-Type: %s\r\nContent-Length: %zu\r\nConnection: close\r\n\r\n",
                   contentType, body.size());
 
-  const bool headerOk = sendAll(client, std::span<const char>(header.data(), static_cast<size_t>(len)));
-  const bool bodyOk   = body.empty() ? true : sendAll(client, std::span<const char>(body.data(), body.size()));
+  const auto headerOk = sendAll(client, std::span<const char>(header.data(), static_cast<size_t>(len)));
+  const auto bodyOk   = body.empty() ? true : sendAll(client, std::span<const char>(body.data(), body.size()));
 
   if (headerOk and bodyOk)
   {
-    printf("[WiFi] Response sent (full)\n");
+    printf("[WiFi] Response sent\n");
   }
   else
   {
@@ -119,28 +120,28 @@ void sendResponse(const int32_t client, const std::string_view body, const char*
 auto configToJson(const SystemConfig& cfg) -> std::string
 {
   std::array<char, 2048>      buf{};
-  [[maybe_unused]] const auto _ =
-    std::snprintf(buf.data(), buf.size(),
-                  "{"
-                  "\"wifi_ssid\":\"%s\","
-                  "\"wifi_pass\":\"%s\","
-                  "\"ap_ssid\":\"%s\","
-                  "\"ap_pass\":\"%s\","
-                  "\"mqtt_host\":\"%s\","
-                  "\"mqtt_port\":%d,"
-                  "\"mqtt_client_id\":\"%s\","
-                  "\"mqtt_user\":\"%s\","
-                  "\"mqtt_pass\":\"%s\","
-                  "\"mqtt_prefix\":\"%s\","
-                  "\"mqtt_topic\":\"%s\","
-                  "\"mqtt_interval\":%u,"
-                  "\"sensor_interval\":%u,"
-                  "\"irrigation_mode\":%d"
-                  "}",
-                  cfg.wifi.ssid.data(), cfg.wifi.pass.data(), cfg.ap.ssid.data(), cfg.ap.pass.data(),
-                  cfg.mqtt.brokerHost.data(), cfg.mqtt.brokerPort, cfg.mqtt.clientId.data(), cfg.mqtt.username.data(),
-                  cfg.mqtt.password.data(), cfg.mqtt.discoveryPrefix.data(), cfg.mqtt.baseTopic.data(),
-                  cfg.mqtt.publishIntervalMs, cfg.sensorReadIntervalMs, static_cast<int>(cfg.irrigationMode));
+  [[maybe_unused]] const auto _ = std::snprintf(
+    buf.data(), buf.size(),
+    "{"
+    "\"wifi_ssid\":\"%s\","
+    "\"wifi_pass\":\"%s\","
+    "\"ap_ssid\":\"%s\","
+    "\"ap_pass\":\"%s\","
+    "\"mqtt_host\":\"%s\","
+    "\"mqtt_port\":%d,"
+    "\"mqtt_client_id\":\"%s\","
+    "\"mqtt_user\":\"%s\","
+    "\"mqtt_pass\":\"%s\","
+    "\"mqtt_prefix\":\"%s\","
+    "\"mqtt_topic\":\"%s\","
+    "\"mqtt_interval\":%u,"
+    "\"sensor_interval\":%u,"
+    "\"irrigation_mode\":%d"
+    "}",
+    cfg.wifi.ssid.data(), cfg.wifi.pass.data(), cfg.ap.ssid.data(), cfg.ap.pass.data(), cfg.mqtt.brokerHost.data(),
+    cfg.mqtt.brokerPort, cfg.mqtt.clientId.data(), cfg.mqtt.username.data(), cfg.mqtt.password.data(),
+    cfg.mqtt.discoveryPrefix.data(), cfg.mqtt.baseTopic.data(), cfg.mqtt.publishIntervalMs / 1000,
+    cfg.sensorReadIntervalMs / 1000, static_cast<int>(cfg.irrigationMode));
   return {buf.data()};
 }
 
@@ -165,20 +166,20 @@ auto sensorsToJson(SensorManager& sm) -> std::string
   return {buf.data()};
 }
 
-auto getJsonValue(std::string_view json, std::string_view key) -> std::string
+auto getJsonValue(const std::string_view json, const std::string_view key) -> std::string
 {
-  const std::string keyStr = "\"" + std::string(key) + "\"";
-  auto              keyPos = json.find(keyStr);
+  const auto keyStr = "\"" + std::string(key) + "\"";
+  const auto keyPos = json.find(keyStr);
   if (keyPos == std::string::npos)
   {
     return "";
   }
-  auto colonPos = json.find(':', keyPos);
+  const auto colonPos = json.find(':', keyPos);
   if (colonPos == std::string::npos)
   {
     return "";
   }
-  auto valueStart = json.find_first_not_of(" \t\n\r", colonPos + 1);
+  const auto valueStart = json.find_first_not_of(" \t\n\r", colonPos + 1);
   if (valueStart == std::string::npos)
   {
     return "";
@@ -186,29 +187,29 @@ auto getJsonValue(std::string_view json, std::string_view key) -> std::string
 
   if (json[valueStart] == '"')
   {
-    auto valueEnd = json.find('"', valueStart + 1);
+    const auto valueEnd = json.find('"', valueStart + 1);
     return std::string(json.substr(valueStart + 1, valueEnd - valueStart - 1));
   }
 
-  auto valueEnd = json.find_first_of(",}", valueStart);
+  const auto valueEnd = json.find_first_of(",}", valueStart);
   return std::string(json.substr(valueStart, valueEnd - valueStart));
 }
 
-void updateConfigFromJson(SystemConfig& cfg, std::string_view json)
+void updateConfigFromJson(SystemConfig& cfg, const std::string_view json)
 {
-  auto copyStr = [&](auto& dest, std::string_view key)
+  const auto copyStr = [&](auto& dest, const std::string_view key) -> auto
   {
-    std::string val = getJsonValue(json, key);
-    if (!val.empty())
+    const auto val = getJsonValue(json, key);
+    if (not val.empty())
     {
       std::strncpy(dest.data(), val.c_str(), dest.size() - 1);
     }
   };
 
-  auto copyInt = [&](auto& dest, std::string_view key)
+  const auto copyInt = [&](auto& dest, const std::string_view key) -> auto
   {
-    std::string val = getJsonValue(json, key);
-    if (!val.empty())
+    const auto val = getJsonValue(json, key);
+    if (not val.empty())
     {
       dest = static_cast<std::remove_reference_t<decltype(dest)>>(std::strtoul(val.c_str(), nullptr, 10));
     }
@@ -216,7 +217,7 @@ void updateConfigFromJson(SystemConfig& cfg, std::string_view json)
 
   copyStr(cfg.wifi.ssid, "wifi_ssid");
   copyStr(cfg.wifi.pass, "wifi_pass");
-  if (!cfg.wifi.ssid.empty())
+  if (not cfg.wifi.ssid.empty())
   {
     cfg.wifi.valid = true;
   }
@@ -232,24 +233,26 @@ void updateConfigFromJson(SystemConfig& cfg, std::string_view json)
   copyStr(cfg.mqtt.discoveryPrefix, "mqtt_prefix");
   copyStr(cfg.mqtt.baseTopic, "mqtt_topic");
   copyInt(cfg.mqtt.publishIntervalMs, "mqtt_interval");
+  cfg.mqtt.publishIntervalMs *= 1000;
 
   copyInt(cfg.sensorReadIntervalMs, "sensor_interval");
+  cfg.sensorReadIntervalMs *= 1000;
 
-  std::string modeStr = getJsonValue(json, "irrigation_mode");
-  if (!modeStr.empty())
+  const auto modeStr = getJsonValue(json, "irrigation_mode");
+  if (not modeStr.empty())
   {
     cfg.irrigationMode = static_cast<IrrigationMode>(std::stoi(modeStr));
   }
 }
 
-void applyHostname(const char* hostname)
+void applyHostname(const char* const hostname)
 {
   netif_set_hostname(&cyw43_state.netif[CYW43_ITF_STA], hostname);
   netif_set_hostname(&cyw43_state.netif[CYW43_ITF_AP], hostname);
   printf("[WiFi] Hostname set to '%s'\n", hostname);
 }
 
-void logNetifInfo(const char* label, const netif* nif)
+void logNetifInfo(const char* const label, const netif* const nif)
 {
   if (nif == nullptr)
   {
@@ -260,19 +263,17 @@ void logNetifInfo(const char* label, const netif* nif)
   std::array<char, 16> gwBuf{};
   std::array<char, 16> maskBuf{};
 
-  const char* ipStr = ip4addr_ntoa(netif_ip4_addr(nif));
+  const auto* ipStr = ip4addr_ntoa(netif_ip4_addr(nif));
   if (ipStr != nullptr)
   {
     std::strncpy(ipBuf.data(), ipStr, ipBuf.size() - 1);
   }
-
-  const char* gwStr = ip4addr_ntoa(netif_ip4_gw(nif));
+  const auto* gwStr = ip4addr_ntoa(netif_ip4_gw(nif));
   if (gwStr != nullptr)
   {
     std::strncpy(gwBuf.data(), gwStr, gwBuf.size() - 1);
   }
-
-  const char* maskStr = ip4addr_ntoa(netif_ip4_netmask(nif));
+  const auto* maskStr = ip4addr_ntoa(netif_ip4_netmask(nif));
   if (maskStr != nullptr)
   {
     std::strncpy(maskBuf.data(), maskStr, maskBuf.size() - 1);
@@ -294,8 +295,8 @@ auto handleClientRequest(const int32_t client, SystemConfig& config, bool& reboo
   buf.at(static_cast<size_t>(len)) = '\0';
   printf("[WiFi] Received %d bytes\n", (int)len);
 
-  const std::string_view request(buf.data(), static_cast<size_t>(len));
-  const auto             firstLineEnd = request.find("\r\n");
+  const auto request      = std::string_view(buf.data(), static_cast<size_t>(len));
+  const auto firstLineEnd = request.find("\r\n");
   if (firstLineEnd == std::string_view::npos)
   {
     return false;
@@ -355,7 +356,7 @@ auto handleClientRequest(const int32_t client, SystemConfig& config, bool& reboo
 
 }  // namespace
 
-auto WifiProvisioner::init() -> bool
+auto ConnectionManager::init() -> bool
 {
   if (initialized_)
   {
@@ -374,7 +375,7 @@ auto WifiProvisioner::init() -> bool
   return true;
 }
 
-auto WifiProvisioner::connectSta(const WifiCredentials& creds) -> bool
+auto ConnectionManager::connectSta(const WifiCredentials& creds) -> bool
 {
   if (not creds.valid) [[unlikely]]
   {
@@ -406,8 +407,8 @@ auto WifiProvisioner::connectSta(const WifiCredentials& creds) -> bool
   return true;
 }
 
-auto WifiProvisioner::startApAndServe(const uint32_t timeoutMs, SensorManager& sensorManager,
-                                      const volatile bool* const cancelFlag) -> bool
+auto ConnectionManager::startApAndServe(const uint32_t timeoutMs, SensorManager& sensorManager,
+                                        const volatile bool* const cancelFlag) -> bool
 {
   if (not init())
   {
@@ -421,13 +422,13 @@ auto WifiProvisioner::startApAndServe(const uint32_t timeoutMs, SensorManager& s
   cyw43_arch_disable_sta_mode();
 
   SystemConfig config;
-  if (!FlashManager::loadConfig(config))
+  if (not FlashManager::loadConfig(config))
   {
     config = {};
   }
 
-  const char* apSsid = (config.ap.ssid[0] != '\0') ? config.ap.ssid.data() : Config::AP_SSID;
-  const char* apPass = (config.ap.pass[0] != '\0') ? config.ap.pass.data() : Config::AP_PASS;
+  const auto* apSsid = (config.ap.ssid[0] != '\0') ? config.ap.ssid.data() : Config::AP_SSID;
+  const auto* apPass = (config.ap.pass[0] != '\0') ? config.ap.pass.data() : Config::AP_PASS;
 
   printf("[WiFi] Starting AP '%s'...\n", apSsid);
   cyw43_arch_enable_ap_mode(apSsid, apPass, CYW43_AUTH_WPA2_AES_PSK);
@@ -444,7 +445,7 @@ auto WifiProvisioner::startApAndServe(const uint32_t timeoutMs, SensorManager& s
   printf("[WiFi] DHCP Server started at 192.168.4.1\n");
   logNetifInfo("AP", &cyw43_state.netif[CYW43_ITF_AP]);
 
-  const int server = lwip_socket(AF_INET, SOCK_STREAM, 0);
+  const auto server = lwip_socket(AF_INET, SOCK_STREAM, 0);
   if (server < 0)
   {
     printf("[WiFi] Socket create failed\n");
@@ -484,7 +485,7 @@ auto WifiProvisioner::startApAndServe(const uint32_t timeoutMs, SensorManager& s
     tv.tv_sec  = 0;
     tv.tv_usec = 100'000;
 
-    const int sel = lwip_select(server + 1, &readSet, nullptr, nullptr, &tv);
+    const auto sel = lwip_select(server + 1, &readSet, nullptr, nullptr, &tv);
     if (sel <= 0)
     {
       vTaskDelay(pdMS_TO_TICKS(10));

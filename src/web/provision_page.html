@@ -261,6 +261,17 @@
             <symbol id="icon-water" viewBox="0 0 24 24">
                 <path d="M12 3L2 12h3v8h14v-8h3L12 3zm0 13c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z" />
             </symbol>
+            <symbol id="icon-gauge" viewBox="0 0 24 24">
+                <path
+                    d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-5.5-2.5l7.51-3.22-7.52-1.5 1.5 7.52-1.49-2.8z" />
+            </symbol>
+            <symbol id="icon-seedling" viewBox="0 0 24 24">
+                <path
+                    d="M12 22c4.97 0 9-4.03 9-9-4.97 0-9-4.03-9-9-4.97 0-9 4.03-9 9 0 4.97 4.03 9 9 9zm0-16c3.87 0 7 3.13 7 7s-3.13 7-7 7-7-3.13-7-7 3.13-7 7-7zM9.5 10.5c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5-1.5-.67-1.5-1.5.67-1.5 1.5-1.5z" />
+            </symbol>
+            <symbol id="icon-ruler" viewBox="0 0 24 24">
+                <path d="M2 2v20h20v-2H4v-4h6v-2H4v-4h10V8H4V4h16V2H2z" />
+            </symbol>
         </svg>
 
         <div class="container">
@@ -331,8 +342,8 @@
                                     value="homeassistant"></div>
                             <div class="form-group"><label>Base Topic</label><input type="text" name="mqtt_topic"
                                     value="plant_monitor"></div>
-                            <div class="form-group"><label>Publish Interval (ms)</label><input type="number"
-                                    name="mqtt_interval" value="3600000"></div>
+                            <div class="form-group"><label>Publish Interval (s)</label><input type="number"
+                                    name="mqtt_interval" value="3600"></div>
                         </div>
                     </div>
 
@@ -344,8 +355,8 @@
                             </svg>
                         </div>
                         <div class="card-body">
-                            <div class="form-group"><label>Sensor Read Interval (ms)</label><input type="number"
-                                    name="sensor_interval" value="60000"></div>
+                            <div class="form-group"><label>Sensor Read Interval (s)</label><input type="number"
+                                    name="sensor_interval" value="60"></div>
                             <div class="form-group">
                                 <label>Irrigation Mode</label>
                                 <select name="irrigation_mode">
@@ -431,9 +442,9 @@
             const sensorIcons = {
                 'Temperature': '#icon-temp',
                 'Humidity': '#icon-drop',
-                'Pressure': '#icon-drop',
-                'Soil Moisture': '#icon-leaf',
-                'Water Level': '#icon-water',
+                'Pressure': '#icon-gauge',
+                'Soil Moisture': '#icon-seedling',
+                'Water Level': '#icon-ruler',
                 'Light': '#icon-light'
             };
 

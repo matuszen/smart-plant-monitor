@@ -42,18 +42,17 @@ public:
   [[nodiscard]] auto nextSleepHintMs() const -> uint32_t;
 
 private:
-  SensorManager* sensorManager_;
-  IrrigationMode mode_{IrrigationMode::EVAPOTRANSPIRATION};
   bool           initialized_{false};
   bool           isWatering_{false};
+  SensorManager* sensorManager_;
+  IrrigationMode mode_{IrrigationMode::EVAPOTRANSPIRATION};
 
-  uint32_t wateringStartTime_{0};
-  uint32_t wateringDuration_{Config::DEFAULT_WATERING_DURATION_MS};
-  uint32_t lastWateringTime_{0};
-  uint32_t sleepHintMs_{Config::IRRIGATION_ACTIVE_TICK_MS};
-  uint32_t nextWateringEstimateMs_{0};
-  float    lastSoilPercentage_{Config::SOIL_MOISTURE_WET_THRESHOLD};
-
+  float      lastSoilPercentage_{Config::SOIL_MOISTURE_WET_THRESHOLD};
+  uint32_t   wateringDuration_{Config::DEFAULT_WATERING_DURATION_MS};
+  uint32_t   sleepHintMs_{Config::IRRIGATION_ACTIVE_TICK_MS};
+  uint32_t   wateringStartTime_{0};
+  uint32_t   lastWateringTime_{0};
+  uint32_t   nextWateringEstimateMs_{0};
   SensorData lastSensorData_{};
 
   static void               activateRelay(bool enable);

@@ -4,7 +4,6 @@
 #include "SensorManager.hpp"
 #include "Types.hpp"
 
-#include <cstdint>
 #include <lwip/apps/mqtt.h>
 #include <lwip/dns.h>
 #include <lwip/err.h>
@@ -13,6 +12,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <span>

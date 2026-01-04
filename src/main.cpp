@@ -1,11 +1,11 @@
 #include "AppTasks.hpp"
 #include "Config.hpp"
+#include "ConnectionManager.hpp"
 #include "FlashManager.hpp"
 #include "IrrigationController.hpp"
 #include "MQTTClient.hpp"
 #include "SensorManager.hpp"
 #include "Types.hpp"
-#include "WifiProvisioner.hpp"
 
 #include <FreeRTOS.h>
 #include <hardware/gpio.h>
@@ -24,7 +24,7 @@ namespace
 SensorManager        sensorManager;
 IrrigationController irrigationController(&sensorManager);
 MQTTClient           mqttClient(&sensorManager, &irrigationController);
-WifiProvisioner      wifiProvisioner;
+ConnectionManager    wifiProvisioner;
 
 void initSystem()
 {

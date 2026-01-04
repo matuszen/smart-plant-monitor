@@ -1,9 +1,9 @@
 #pragma once
 
+#include "ConnectionManager.hpp"
 #include "IrrigationController.hpp"
 #include "MQTTClient.hpp"
 #include "SensorManager.hpp"
-#include "WifiProvisioner.hpp"
 
 #include <portmacrocommon.h>
 
@@ -43,9 +43,9 @@ struct LedSharedState
 
 struct ProvisionContext
 {
-  WifiProvisioner* provisioner{};
-  MQTTClient*      mqttClient{};
-  QueueHandle_t    queue{};
+  ConnectionManager* provisioner{};
+  MQTTClient*        mqttClient{};
+  QueueHandle_t      queue{};
 };
 
-void startAppTasks(IrrigationController& irrigationController, MQTTClient& mqttClient, WifiProvisioner& provisioner);
+void startAppTasks(IrrigationController& irrigationController, MQTTClient& mqttClient, ConnectionManager& provisioner);

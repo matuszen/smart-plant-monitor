@@ -38,7 +38,7 @@ target_include_directories(freertos_config SYSTEM INTERFACE
     ${CMAKE_CURRENT_SOURCE_DIR}/libs/src
 )
 target_compile_definitions(freertos_config INTERFACE projCOVERAGE_TEST=0)
-include(${FREERTOS_KERNEL_PATH}/portable/ThirdParty/GCC/RP2040/FreeRTOS_Kernel_import.cmake)
+include(${FREERTOS_KERNEL_PATH}/portable/ThirdParty/GCC/RP2350_ARM_NTZ/FreeRTOS_Kernel_import.cmake)
 
 set(SOURCES
     src/main.cpp
@@ -50,7 +50,7 @@ set(SOURCES
     src/MQTTClient.cpp
     src/SoilMoistureSensor.cpp
     src/AppTasks.cpp
-    src/WifiProvisioner.cpp
+    src/ConnectionManager.cpp
     src/FlashManager.cpp
     libs/src/dhcpserver.c
 )
@@ -59,6 +59,7 @@ add_executable(smart_plant_monitor ${SOURCES})
 
 target_link_libraries(smart_plant_monitor
     pico_stdlib
+    pico_multicore
     pico_cyw43_arch_lwip_sys_freertos
     pico_lwip_mqtt
     pico_lwip_mdns
@@ -66,10 +67,9 @@ target_link_libraries(smart_plant_monitor
     hardware_i2c
     hardware_gpio
     hardware_pwm
-    pico_multicore
+    freertos_config
     FreeRTOS-Kernel
     FreeRTOS-Kernel-Heap4
-    freertos_config
 )
 
 pico_enable_stdio_usb(smart_plant_monitor 1)
