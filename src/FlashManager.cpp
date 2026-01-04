@@ -2,6 +2,7 @@
 #include "Types.hpp"
 
 #include <FreeRTOS.h>
+#include <array>
 #include <boards/pico2_w.h>
 #include <cyw43_configport.h>
 #include <hardware/flash.h>
@@ -171,12 +172,10 @@ auto FlashManager::loadConfig(SystemConfig& config) -> bool
   {
     return false;
   }
-
   if (record.magic != CONFIG_MAGIC)
   {
     return false;
   }
-
   const uint32_t calculatedCrc = crc32(&record.config, sizeof(record.config));
   if (calculatedCrc != record.crc)
   {
@@ -196,12 +195,16 @@ auto FlashManager::saveConfig(const SystemConfig& config) -> bool
     .crc    = crc32(&config, sizeof(config)),
   };
 
+  std::array<uint8_t, 1024> buffer{};
+  buffer.fill(0xFF);
+  std::memcpy(buffer.data(), &record, sizeof(record));
+
   if (not erase(offset, FLASH_SECTOR_SIZE))
   {
     return false;
   }
 
-  return write(offset, std::span(reinterpret_cast<const uint8_t*>(&record), sizeof(record)));
+  return write(offset, buffer);
 }
 
 auto FlashManager::flushOutputBuffers() -> bool

@@ -32,13 +32,21 @@ enum class NetworkLedState : uint8_t
   OFF,
   CONNECTING,
   PROVISIONING,
-  CONNECTED
+  CONNECTED,
+  MQTT_CONNECTED
 };
 
 struct LedSharedState
 {
-  bool            errorOn{false};
+  bool            sensorError{false};
+  bool            wifiError{false};
+  bool            activity{false};
   NetworkLedState network{NetworkLedState::OFF};
+
+  [[nodiscard]] auto isError() const -> bool
+  {
+    return sensorError or wifiError;
+  }
 };
 
 struct ProvisionContext

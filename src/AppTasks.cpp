@@ -109,14 +109,36 @@ void setNetworkLedState(const NetworkLedState state)
   xSemaphoreGive(ledStateMutex);
 }
 
-void setErrorLedState(const bool on)
+void setSensorError(const bool on)
 {
   if (ledStateMutex == nullptr) [[unlikely]]
   {
     return;
   }
   xSemaphoreTake(ledStateMutex, portMAX_DELAY);
-  ledShared.errorOn = on;
+  ledShared.sensorError = on;
+  xSemaphoreGive(ledStateMutex);
+}
+
+void setWifiError(const bool on)
+{
+  if (ledStateMutex == nullptr) [[unlikely]]
+  {
+    return;
+  }
+  xSemaphoreTake(ledStateMutex, portMAX_DELAY);
+  ledShared.wifiError = on;
+  xSemaphoreGive(ledStateMutex);
+}
+
+void setActivityLedState(const bool on)
+{
+  if (ledStateMutex == nullptr) [[unlikely]]
+  {
+    return;
+  }
+  xSemaphoreTake(ledStateMutex, portMAX_DELAY);
+  ledShared.activity = on;
   xSemaphoreGive(ledStateMutex);
 }
 
@@ -211,38 +233,38 @@ void updateErrorLedFromData(const SensorData& data)
 {
   const auto waterLow   = data.water.isValid() and data.water.isLow();
   const auto sensorsBad = (not data.environment.isValid()) or (not data.soil.isValid()) or (not data.water.isValid());
-  setErrorLedState(waterLow or sensorsBad);
+  setSensorError(waterLow or sensorsBad);
 }
 
 void ledTask(void* const /*params*/)
 {
-  bool statusOn  = false;
   bool networkOn = false;
 
-  uint32_t lastStatusToggle  = 0;
   uint32_t lastNetworkToggle = 0;
 
-  constexpr uint32_t statusPeriodMs   = 500;
   constexpr uint32_t connectBlinkMs   = 400;
   constexpr uint32_t provisionBlinkMs = 150;
+  constexpr uint32_t connectedBlinkMs = 1000;
 
   while (true)
   {
     const auto now = nowMs();
     auto       led = readLedState();
 
-    if ((now - lastStatusToggle) >= statusPeriodMs)
-    {
-      statusOn         = not statusOn;
-      lastStatusToggle = now;
-    }
-    gpio_put(Config::LED_STATUS_PIN, statusOn);
+    // Status LED: Only on when active (watering or reading sensors)
+    gpio_put(Config::LED_STATUS_PIN, led.activity);
 
     switch (led.network)
     {
+      case NetworkLedState::MQTT_CONNECTED:
+        networkOn = true;
+        break;
       case NetworkLedState::CONNECTED:
-        networkOn         = true;
-        lastNetworkToggle = now;
+        if ((now - lastNetworkToggle) >= connectedBlinkMs)
+        {
+          networkOn         = not networkOn;
+          lastNetworkToggle = now;
+        }
         break;
       case NetworkLedState::PROVISIONING:
         if ((now - lastNetworkToggle) >= provisionBlinkMs)
@@ -265,7 +287,7 @@ void ledTask(void* const /*params*/)
     }
     gpio_put(Config::LED_NETWORK_PIN, networkOn);
 
-    gpio_put(Config::LED_ERROR_PIN, led.errorOn);
+    gpio_put(Config::LED_ERROR_PIN, led.isError());
 
     vTaskDelay(pdMS_TO_TICKS(50));
   }
@@ -341,8 +363,8 @@ void buttonTask(void* const /*params*/)
   }
 }
 
-void handleSensorRead(const uint32_t now, SensorManager& sensorManager, IrrigationController& irrigationController,
-                      MQTTClient& mqttClient)
+auto handleSensorRead(const uint32_t now, SensorManager& sensorManager, IrrigationController& irrigationController,
+                      MQTTClient& mqttClient) -> SensorData
 {
   printf("[%u] Reading sensors...\n", now);
 
@@ -358,6 +380,47 @@ void handleSensorRead(const uint32_t now, SensorManager& sensorManager, Irrigati
   irrigationController.update(data);
 
   mqttClient.publishSensorState(now, data, irrigationController.isWatering());
+
+  return data;
+}
+
+void handleWaterLevelError(const uint32_t now, uint32_t& lastSensorRead, bool& waterLevelError,
+                           SensorManager& sensorManager, IrrigationController& irrigationController, MQTTClient& ctx)
+{
+  const auto waterData = sensorManager.readWaterLevel();
+  if (waterData.isValid() and not waterData.isLow())
+  {
+    waterLevelError = false;
+    const auto data = handleSensorRead(now, sensorManager, irrigationController, ctx);
+    waterLevelError = (data.water.isValid() and data.water.isLow());
+  }
+  else
+  {
+    SensorData dummyData{};
+    dummyData.water = waterData;
+    logWaterLevel(dummyData);
+    updateErrorLedFromData(dummyData);
+  }
+  lastSensorRead = now;
+}
+
+void handleNormalSensorRead(const uint32_t now, uint32_t& lastSensorRead, bool& waterLevelError,
+                            SensorManager& sensorManager, IrrigationController& irrigationController, MQTTClient& ctx)
+{
+  const auto data = handleSensorRead(now, sensorManager, irrigationController, ctx);
+  waterLevelError = (data.water.isValid() and data.water.isLow());
+  lastSensorRead  = now;
+}
+
+auto shouldPerformSensorRead(const uint32_t now, uint32_t lastSensorRead, uint32_t sensorReadInterval,
+                             bool waterLevelError) -> bool
+{
+  if (waterLevelError)
+  {
+    constexpr uint32_t errorRetryIntervalMs = 15'000;
+    return (now - lastSensorRead >= errorRetryIntervalMs);
+  }
+  return (now - lastSensorRead >= sensorReadInterval);
 }
 
 void sensorTask(void* const params)
@@ -378,18 +441,67 @@ void sensorTask(void* const params)
     sensorReadInterval = Config::DEFAULT_SENSOR_READ_INTERVAL_MS;
   }
 
-  auto               lastSensorRead   = sensorReadInterval;
-  constexpr uint32_t sensorTaskTickMs = 100;
+  auto               lastSensorRead       = sensorReadInterval;
+  constexpr uint32_t sensorTaskTickMs     = 100;
+  constexpr uint32_t errorRetryIntervalMs = 15'000;
+
+  bool     wasWatering             = false;
+  uint32_t scheduledReadTime       = 0;
+  bool     pendingPostWateringRead = false;
+  bool     waterLevelError         = false;
 
   while (true)
   {
     const auto now = nowMs();
     ctx.loop(now);
 
-    if (now - lastSensorRead >= sensorReadInterval)
+    if (ctx.isConnected())
     {
-      handleSensorRead(now, sensorManager, irrigationController, ctx);
-      lastSensorRead = now;
+      setNetworkLedState(NetworkLedState::MQTT_CONNECTED);
+    }
+    else
+    {
+      const auto currentLed = readLedState();
+      if (currentLed.network == NetworkLedState::MQTT_CONNECTED)
+      {
+        setNetworkLedState(NetworkLedState::CONNECTED);
+      }
+    }
+
+    const bool isWatering = irrigationController.isWatering();
+    setActivityLedState(isWatering);
+
+    if (wasWatering and not isWatering)
+    {
+      scheduledReadTime       = now + 60'000;
+      pendingPostWateringRead = true;
+    }
+    wasWatering = isWatering;
+
+    bool shouldRead     = shouldPerformSensorRead(now, lastSensorRead, sensorReadInterval, waterLevelError);
+    bool onlyWaterLevel = waterLevelError and (now - lastSensorRead >= errorRetryIntervalMs);
+
+    if (pendingPostWateringRead and now >= scheduledReadTime)
+    {
+      shouldRead              = true;
+      onlyWaterLevel          = false;
+      pendingPostWateringRead = false;
+    }
+
+    if (shouldRead)
+    {
+      setActivityLedState(true);
+
+      if (onlyWaterLevel)
+      {
+        handleWaterLevelError(now, lastSensorRead, waterLevelError, sensorManager, irrigationController, ctx);
+      }
+      else
+      {
+        handleNormalSensorRead(now, lastSensorRead, waterLevelError, sensorManager, irrigationController, ctx);
+      }
+
+      setActivityLedState(irrigationController.isWatering());
     }
 
     vTaskDelay(pdMS_TO_TICKS(sensorTaskTickMs));
@@ -428,7 +540,7 @@ void processWifiCommand(const WifiCommand cmd, ProvisionContext* const ctx, bool
 
       ctx->mqttClient->setWifiReady(false);
 
-      const bool reboot = ctx->provisioner->startApAndServe(Config::AP_SESSION_TIMEOUT_MS,
+      const bool reboot = ctx->provisioner->startApAndServe(Config::AP::SESSION_TIMEOUT_MS,
                                                             *ctx->mqttClient->getSensorManager(), &apCancelFlag);
 
       apActive     = false;
@@ -473,6 +585,62 @@ void processWifiCommand(const WifiCommand cmd, ProvisionContext* const ctx, bool
   }
 }
 
+void handleInitialConnection(ProvisionContext* const ctx, const SystemConfig& config, bool& connected)
+{
+  auto connectedStatus = ctx->provisioner->connectSta(config.wifi);
+  if (connectedStatus)
+  {
+    ctx->mqttClient->setWifiReady(true);
+    if (config.mqtt.enabled)
+    {
+      [[maybe_unused]] const auto _ = ctx->mqttClient->init(config.mqtt);
+    }
+    setNetworkLedState(NetworkLedState::CONNECTED);
+    setWifiError(false);
+  }
+  else
+  {
+    ctx->mqttClient->setWifiReady(false);
+    setNetworkLedState(NetworkLedState::OFF);
+    printf("[WiFi] No valid connection.\n");
+    setWifiError(true);
+  }
+  connected = connectedStatus;
+}
+
+void handleConnectionRetry(ProvisionContext* const ctx, const SystemConfig& config, bool& connected,
+                           uint32_t& lastConnectionAttempt)
+{
+  const auto         now                       = nowMs();
+  constexpr uint32_t connectionRetryIntervalMs = 15'000;
+
+  if (now - lastConnectionAttempt < connectionRetryIntervalMs)
+  {
+    return;
+  }
+
+  printf("[WiFi] Retrying connection...\n");
+  setNetworkLedState(NetworkLedState::CONNECTING);
+  connected             = ctx->provisioner->connectSta(config.wifi);
+  lastConnectionAttempt = nowMs();
+
+  if (connected)
+  {
+    ctx->mqttClient->setWifiReady(true);
+    if (config.mqtt.enabled)
+    {
+      [[maybe_unused]] const auto _ = ctx->mqttClient->init(config.mqtt);
+    }
+    setNetworkLedState(NetworkLedState::CONNECTED);
+    setWifiError(false);
+  }
+  else
+  {
+    setNetworkLedState(NetworkLedState::OFF);
+    setWifiError(true);
+  }
+}
+
 void wifiProvisionTask(void* const params)
 {
   auto* ctx = static_cast<ProvisionContext*>(params);
@@ -489,32 +657,25 @@ void wifiProvisionTask(void* const params)
     config = {};
   }
 
-  auto connected = ctx->provisioner->connectSta(config.wifi);
+  bool connected = false;
+  handleInitialConnection(ctx, config, connected);
 
   bool apActive = false;
   apActiveFlag  = false;
-  if (connected)
-  {
-    ctx->mqttClient->setWifiReady(true);
-    if (config.mqtt.enabled)
-    {
-      [[maybe_unused]] const auto _ = ctx->mqttClient->init(config.mqtt);
-    }
-    setNetworkLedState(NetworkLedState::CONNECTED);
-  }
-  else
-  {
-    ctx->mqttClient->setWifiReady(false);
-    setNetworkLedState(NetworkLedState::OFF);
-    printf("[WiFi] No valid connection.\n");
-  }
+
+  uint32_t lastConnectionAttempt = nowMs();
 
   while (true)
   {
     WifiCommand cmd{};
-    if ((ctx->queue != nullptr) and (xQueueReceive(ctx->queue, &cmd, pdMS_TO_TICKS(200)) == pdPASS))
+    if ((ctx->queue != nullptr) and (xQueueReceive(ctx->queue, &cmd, pdMS_TO_TICKS(100)) == pdPASS))
     {
       processWifiCommand(cmd, ctx, connected, apActive);
+    }
+
+    if (not connected and not apActive and config.wifi.valid)
+    {
+      handleConnectionRetry(ctx, config, connected, lastConnectionAttempt);
     }
 
     vTaskDelay(pdMS_TO_TICKS(100));

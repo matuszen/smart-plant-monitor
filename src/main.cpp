@@ -16,6 +16,7 @@
 #include <pico/time.h>
 #include <task.h>
 
+#include <cstdint>
 #include <cstdio>
 
 namespace
@@ -30,8 +31,8 @@ void initSystem()
 {
   printf("\n");
   printf("=================================================\n");
-  printf("  %.*s v%.*s\n", static_cast<int>(Config::SYSTEM_NAME.size()), Config::SYSTEM_NAME.data(),
-         static_cast<int>(Config::SYSTEM_VERSION.size()), Config::SYSTEM_VERSION.data());
+  printf("  %.*s v%.*s\n", static_cast<int32_t>(Config::System::NAME.size()), Config::System::NAME.data(),
+         static_cast<int32_t>(Config::System::VERSION.size()), Config::System::VERSION.data());
   printf("=================================================\n\n");
 
   if (not sensorManager.init()) [[unlikely]]
@@ -48,7 +49,7 @@ void initSystem()
   if (FlashManager::loadConfig(config))
   {
     irrigationController.setMode(config.irrigationMode);
-    printf("Configuration loaded. Irrigation Mode: %d\n", static_cast<int>(config.irrigationMode));
+    printf("Configuration loaded. Irrigation Mode: %d\n", static_cast<int32_t>(config.irrigationMode));
   }
 
   printf("\n=================================================\n");
@@ -67,7 +68,7 @@ void initSystem()
 
 }  // namespace
 
-auto main() -> int
+auto main(const int32_t /*argc*/, const char* const /*argv*/[]) -> int32_t
 {
   stdio_init_all();
   if constexpr (Config::ENABLE_SERIAL_DEBUG)

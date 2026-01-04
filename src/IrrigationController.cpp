@@ -147,8 +147,7 @@ auto IrrigationController::nextSleepHintMs() const -> uint32_t
 
 void IrrigationController::activateRelay(const bool enable)
 {
-  const auto state = Config::RELAY_ACTIVE_HIGH ? enable : not enable;
-  gpio_put(Config::PUMP_CONTROL_PIN, state);
+  gpio_put(Config::PUMP_CONTROL_PIN, enable);
 }
 
 auto IrrigationController::shouldStartWatering() const -> bool

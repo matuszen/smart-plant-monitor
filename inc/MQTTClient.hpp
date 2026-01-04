@@ -37,6 +37,8 @@ public:
     return irrigationController_;
   }
 
+  [[nodiscard]] auto isConnected() const noexcept -> bool;
+
   void setWifiReady(bool ready) noexcept
   {
     wifiReady_ = ready;

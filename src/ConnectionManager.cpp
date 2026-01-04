@@ -217,10 +217,7 @@ void updateConfigFromJson(SystemConfig& cfg, const std::string_view json)
 
   copyStr(cfg.wifi.ssid, "wifi_ssid");
   copyStr(cfg.wifi.pass, "wifi_pass");
-  if (not cfg.wifi.ssid.empty())
-  {
-    cfg.wifi.valid = true;
-  }
+  cfg.wifi.valid = cfg.wifi.ssid[0] != '\0';
 
   copyStr(cfg.ap.ssid, "ap_ssid");
   copyStr(cfg.ap.pass, "ap_pass");
@@ -369,7 +366,7 @@ auto ConnectionManager::init() -> bool
     return false;
   }
 
-  applyHostname(Config::WIFI_HOSTNAME);
+  applyHostname(Config::WiFi::HOSTNAME);
   cyw43_arch_enable_sta_mode();
   initialized_ = true;
   return true;
@@ -421,15 +418,29 @@ auto ConnectionManager::startApAndServe(const uint32_t timeoutMs, SensorManager&
 
   cyw43_arch_disable_sta_mode();
 
-  SystemConfig config;
+  auto config = SystemConfig{};
   if (not FlashManager::loadConfig(config))
   {
-    config = {};
+    config                      = {};
+    config.sensorReadIntervalMs = Config::DEFAULT_SENSOR_READ_INTERVAL_MS;
+    config.irrigationMode       = Config::DEFAULT_IRRIGATION_MODE;
+    std::strncpy(config.ap.ssid.data(), Config::AP::DEFAULT_SSID, config.ap.ssid.size() - 1);
+    std::strncpy(config.ap.pass.data(), Config::AP::DEFAULT_PASS, config.ap.pass.size() - 1);
+    std::strncpy(config.wifi.ssid.data(), Config::WiFi::DEFAULT_SSID, config.wifi.ssid.size() - 1);
+    std::strncpy(config.wifi.pass.data(), Config::WiFi::DEFAULT_PASS, config.wifi.pass.size() - 1);
+    config.mqtt.brokerPort        = Config::MQTT::DEFAULT_BROKER_PORT;
+    config.mqtt.publishIntervalMs = Config::MQTT::DEFAULT_PUBLISH_INTERVAL_MS;
+    std::strncpy(config.mqtt.brokerHost.data(), Config::MQTT::DEFAULT_BROKER_HOST, config.mqtt.brokerHost.size() - 1);
+    std::strncpy(config.mqtt.clientId.data(), Config::MQTT::DEFAULT_CLIENT_ID, config.mqtt.clientId.size() - 1);
+    std::strncpy(config.mqtt.username.data(), Config::MQTT::DEFAULT_USERNAME, config.mqtt.username.size() - 1);
+    std::strncpy(config.mqtt.password.data(), Config::MQTT::DEFAULT_PASSWORD, config.mqtt.password.size() - 1);
+    std::strncpy(config.mqtt.discoveryPrefix.data(), Config::MQTT::DEFAULT_DISCOVERY_PREFIX,
+                 config.mqtt.discoveryPrefix.size() - 1);
+    std::strncpy(config.mqtt.baseTopic.data(), Config::MQTT::DEFAULT_BASE_TOPIC, config.mqtt.baseTopic.size() - 1);
   }
 
-  const auto* apSsid = (config.ap.ssid[0] != '\0') ? config.ap.ssid.data() : Config::AP_SSID;
-  const auto* apPass = (config.ap.pass[0] != '\0') ? config.ap.pass.data() : Config::AP_PASS;
-
+  const auto* apSsid = (config.ap.ssid[0] != '\0') ? config.ap.ssid.data() : Config::AP::DEFAULT_SSID;
+  const auto* apPass = (config.ap.pass[0] != '\0') ? config.ap.pass.data() : Config::AP::DEFAULT_PASS;
   printf("[WiFi] Starting AP '%s'...\n", apSsid);
   cyw43_arch_enable_ap_mode(apSsid, apPass, CYW43_AUTH_WPA2_AES_PSK);
 

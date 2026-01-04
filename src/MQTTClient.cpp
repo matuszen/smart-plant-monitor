@@ -43,6 +43,11 @@ MQTTClient::~MQTTClient()
   }
 }
 
+auto MQTTClient::isConnected() const noexcept -> bool
+{
+  return connectionState_ == ConnectionState::CONNECTED;
+}
+
 auto MQTTClient::init(const MqttConfig& config) -> bool
 {
   config_ = config;
@@ -289,12 +294,12 @@ void MQTTClient::publishSensorDiscovery(std::string_view component, std::string_
   };
 
   append(R"({"name":"%.*s","uniq_id":"%s_%.*s","stat_t":"%s","val_tpl":"%.*s","avty_t":"%s")",
-         static_cast<int32_t>(name.size()), name.data(), Config::DEVICE_IDENTIFIER,
+         static_cast<int32_t>(name.size()), name.data(), Config::System::IDENTIFIER,
          static_cast<int32_t>(objectId.size()), objectId.data(), stateTopic_.data(),
          static_cast<int32_t>(valueTemplate.size()), valueTemplate.data(), availabilityTopic_.data());
 
-  append(R"(,"device":{"ids":["%s"],"name":"%.*s"})", Config::DEVICE_IDENTIFIER,
-         static_cast<int32_t>(Config::SYSTEM_NAME.size()), Config::SYSTEM_NAME.data());
+  append(R"(,"device":{"ids":["%s"],"name":"%.*s"})", Config::System::IDENTIFIER,
+         static_cast<int32_t>(Config::System::NAME.size()), Config::System::NAME.data());
 
   if (not deviceClass.empty())
   {
@@ -321,7 +326,7 @@ void MQTTClient::publishSwitchDiscovery()
   std::array<char, 128> topic{};
 
   const size_t topicLen = std::snprintf(topic.data(), topic.size(), "%s/switch/%s_water/config",
-                                        Config::MQTT::DISCOVERY_PREFIX, Config::DEVICE_IDENTIFIER);
+                                        Config::MQTT::DEFAULT_DISCOVERY_PREFIX, Config::System::IDENTIFIER);
   if (topicLen < 0 or topicLen >= topic.size())
   {
     printf("[MQTTClient] Switch discovery topic truncated, skipping\n");
@@ -350,13 +355,13 @@ void MQTTClient::publishSwitchDiscovery()
   };
 
   append(R"({"name":"Irrigation Switch","uniq_id":"%s_water","cmd_t":"%s","stat_t":"%s","avty_t":"%s")",
-         Config::DEVICE_IDENTIFIER, commandTopic_.data(), stateTopic_.data(), availabilityTopic_.data());
+         Config::System::IDENTIFIER, commandTopic_.data(), stateTopic_.data(), availabilityTopic_.data());
 
   append(R"(,"pl_on":"ON","pl_off":"OFF","stat_on":"ON","stat_off":"OFF")");
   append(R"(,"val_tpl":"{{ 'ON' if value_json.watering else 'OFF' }}")");
 
-  append(R"(,"device":{"ids":["%s"],"name":"%.*s"}})", Config::DEVICE_IDENTIFIER,
-         static_cast<int32_t>(Config::SYSTEM_NAME.size()), Config::SYSTEM_NAME.data());
+  append(R"(,"device":{"ids":["%s"],"name":"%.*s"}})", Config::System::IDENTIFIER,
+         static_cast<int32_t>(Config::System::NAME.size()), Config::System::NAME.data());
 
   if (offset < 0)
   {

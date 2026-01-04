@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Types.hpp"
+
 #include <pico/stdlib.h>
 
 #include <cstddef>
@@ -9,27 +11,36 @@
 namespace Config
 {
 
-inline constexpr std::string_view SYSTEM_VERSION    = "1.0";
-inline constexpr std::string_view SYSTEM_NAME       = "Smart Plant Monitor";
-inline constexpr const char*      DEVICE_IDENTIFIER = "smart-plant-monitor";
+namespace System
+{
+inline constexpr std::string_view VERSION    = "1.0";
+inline constexpr std::string_view NAME       = "Smart Plant Monitor";
+inline constexpr const char*      IDENTIFIER = "smart-plant-monitor";
+}  // namespace System
 
-inline constexpr const char* WIFI_HOSTNAME = DEVICE_IDENTIFIER;
+namespace AP
+{
+inline constexpr const char* DEFAULT_SSID       = "PlantMonitor-Setup";
+inline constexpr const char* DEFAULT_PASS       = "plantsetup";
+inline constexpr uint32_t    SESSION_TIMEOUT_MS = 600'000;
+}  // namespace AP
 
-inline constexpr uint32_t AP_SESSION_TIMEOUT_MS = 600'000;
-constexpr const char*     AP_SSID               = "PlantMonitor-Setup";
-constexpr const char*     AP_PASS               = "plantsetup";
+namespace WiFi
+{
+inline constexpr const char* HOSTNAME     = System::IDENTIFIER;
+inline constexpr const char* DEFAULT_SSID = "";
+inline constexpr const char* DEFAULT_PASS = "";
+}  // namespace WiFi
 
 namespace MQTT
 {
-inline constexpr bool        ENABLE              = true;
-inline constexpr const char* DEFAULT_BROKER_HOST = "homeassistant.local";
-inline constexpr uint16_t    DEFAULT_BROKER_PORT = 1883;
-inline constexpr const char* DEFAULT_CLIENT_ID   = DEVICE_IDENTIFIER;
-inline constexpr const char* DEFAULT_USERNAME    = nullptr;
-inline constexpr const char* DEFAULT_PASSWORD    = nullptr;
-
-inline constexpr const char* DISCOVERY_PREFIX            = "homeassistant";
-inline constexpr const char* BASE_TOPIC                  = "smartplant";
+inline constexpr const char* DEFAULT_BROKER_HOST         = "homeassistant.local";
+inline constexpr uint16_t    DEFAULT_BROKER_PORT         = 1883;
+inline constexpr const char* DEFAULT_CLIENT_ID           = System::IDENTIFIER;
+inline constexpr const char* DEFAULT_USERNAME            = nullptr;
+inline constexpr const char* DEFAULT_PASSWORD            = nullptr;
+inline constexpr const char* DEFAULT_DISCOVERY_PREFIX    = "homeassistant";
+inline constexpr const char* DEFAULT_BASE_TOPIC          = "smartplant";
 inline constexpr uint32_t    DEFAULT_PUBLISH_INTERVAL_MS = 3'600'000;
 inline constexpr uint32_t    RECONNECT_INTERVAL_MS       = 5'000;
 }  // namespace MQTT
@@ -68,19 +79,17 @@ inline constexpr uint8_t  WATER_LEVEL_READ_DELAY_MS     = 10;
 inline constexpr uint8_t  WATER_LEVEL_WAKE_RETRIES      = 8;
 inline constexpr uint16_t WATER_LEVEL_WAKE_DELAY_MS     = 50;
 inline constexpr uint8_t  WATER_LEVEL_WAKE_MIN_SIGNAL   = 5;
-inline constexpr uint16_t WATER_LEVEL_MAX_DEPTH_MM      = WATER_LEVEL_SECTION_HEIGHT_MM * WATER_LEVEL_TOTAL_SECTIONS;
+inline constexpr uint8_t  WATER_LEVEL_POWER_PIN         = 14;
 
-inline constexpr uint8_t WATER_LEVEL_POWER_PIN = 14;
-inline constexpr uint8_t PUMP_CONTROL_PIN      = 2;
-inline constexpr bool    RELAY_ACTIVE_HIGH     = true;
+inline constexpr uint8_t PUMP_CONTROL_PIN = 2;
 
-inline constexpr uint8_t BUTTON_PIN      = 0;
 inline constexpr uint8_t LED_STATUS_PIN  = 1;
 inline constexpr uint8_t LED_NETWORK_PIN = 3;
 inline constexpr uint8_t LED_ERROR_PIN   = 7;
 
-inline constexpr uint32_t BUTTON_AP_MIN_MS = 5'000;
-inline constexpr uint32_t BUTTON_REBOOT_MS = 10'000;
+inline constexpr uint8_t  BUTTON_PIN       = 0;
+inline constexpr uint32_t BUTTON_AP_MIN_MS = 3'000;
+inline constexpr uint32_t BUTTON_REBOOT_MS = 5'000;
 
 inline constexpr uint32_t MIN_WATERING_DURATION_MS     = 1'000;
 inline constexpr uint32_t MAX_WATERING_DURATION_MS     = 5'000;
@@ -97,6 +106,7 @@ inline constexpr bool     ENABLE_SERIAL_DEBUG = true;
 inline constexpr size_t   MAX_LOG_ENTRIES     = 1'000;
 inline constexpr uint32_t SERIAL_BAUDRATE     = 115'200;
 
-inline constexpr uint32_t DEFAULT_SENSOR_READ_INTERVAL_MS = 3'600'000;
+inline constexpr uint32_t       DEFAULT_SENSOR_READ_INTERVAL_MS = 3'600'000;
+inline constexpr IrrigationMode DEFAULT_IRRIGATION_MODE         = IrrigationMode::EVAPOTRANSPIRATION;
 
 }  // namespace Config

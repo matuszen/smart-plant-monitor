@@ -335,13 +335,13 @@
                                     value="1883"></div>
                             <div class="form-group"><label>Client ID</label><input type="text" name="mqtt_client_id"
                                     placeholder="plant-monitor-1"></div>
-                            <div class="form-group"><label>Username</label><input type="text" name="mqtt_user"></div>
-                            <div class="form-group"><label>Password</label><input type="password" name="mqtt_pass">
-                            </div>
                             <div class="form-group"><label>Discovery Prefix</label><input type="text" name="mqtt_prefix"
                                     value="homeassistant"></div>
                             <div class="form-group"><label>Base Topic</label><input type="text" name="mqtt_topic"
                                     value="plant_monitor"></div>
+                            <div class="form-group"><label>Username</label><input type="text" name="mqtt_user"></div>
+                            <div class="form-group"><label>Password</label><input type="password" name="mqtt_pass">
+                            </div>
                             <div class="form-group"><label>Publish Interval (s)</label><input type="number"
                                     name="mqtt_interval" value="3600"></div>
                         </div>
@@ -470,11 +470,18 @@
                 e.preventDefault();
                 const btn = e.target.querySelector('button[type="submit"]');
                 const originalText = btn.innerHTML;
-                btn.disabled = true;
-                btn.innerHTML = 'Saving...';
 
                 const formData = new FormData(e.target);
                 const data = Object.fromEntries(formData.entries());
+
+                if (!data.wifi_ssid) {
+                    alert('Wi-Fi SSID is required');
+                    return;
+                }
+
+                btn.disabled = true;
+                btn.innerHTML = 'Saving...';
+
                 try {
                     await fetch('/api/config', {
                         method: 'POST',
