@@ -68,7 +68,7 @@ void initSystem()
 
 }  // namespace
 
-auto main(const int32_t /*argc*/, const char* const /*argv*/[]) -> int32_t
+auto main(const int /*argc*/, const char* const /*argv*/[]) -> int
 {
   stdio_init_all();
   if constexpr (Config::ENABLE_SERIAL_DEBUG)

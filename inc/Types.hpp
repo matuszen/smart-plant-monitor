@@ -39,11 +39,20 @@ struct ApConfig
 
 enum class IrrigationMode : uint8_t
 {
-  OFF                = 0,
-  MANUAL             = 1,
-  TIMER              = 2,
-  HUMIDITY           = 3,
-  EVAPOTRANSPIRATION = 4
+  OFF,
+  MANUAL,
+  TIMER,
+  HUMIDITY,
+  EVAPOTRANSPIRATION,
+};
+
+enum class SystemStatus : uint8_t
+{
+  INITIALIZING,
+  READY,
+  WATERING,
+  ERROR,
+  LOW_WATER,
 };
 
 struct SystemConfig
@@ -52,16 +61,7 @@ struct SystemConfig
   ApConfig        ap{};
   MqttConfig      mqtt{};
   uint32_t        sensorReadIntervalMs{3'600'000};
-  IrrigationMode  irrigationMode{IrrigationMode::TIMER};
-};
-
-enum class SystemStatus : uint8_t
-{
-  INITIALIZING = 0,
-  READY        = 1,
-  WATERING     = 2,
-  ERROR        = 3,
-  LOW_WATER    = 4
+  IrrigationMode  irrigationMode{IrrigationMode::EVAPOTRANSPIRATION};
 };
 
 struct EnvironmentData

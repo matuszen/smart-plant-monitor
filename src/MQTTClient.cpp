@@ -4,6 +4,7 @@
 #include "SensorManager.hpp"
 #include "Types.hpp"
 
+#include <cstdlib>
 #include <lwip/apps/mqtt.h>
 #include <lwip/dns.h>
 #include <lwip/err.h>
@@ -15,6 +16,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <pico/time.h>
 #include <span>
 #include <string>
 #include <string_view>
@@ -72,6 +74,14 @@ auto MQTTClient::init(const MqttConfig& config) -> bool
     printf("[MQTTClient] ERROR: command topic truncated\n");
   }
 
+  formatTopic(modeCommandTopic_.data(), modeCommandTopic_.size(), "mode/set");
+  formatTopic(modeStateTopic_.data(), modeStateTopic_.size(), "mode/state");
+  formatTopic(triggerCommandTopic_.data(), triggerCommandTopic_.size(), "trigger/set");
+  formatTopic(updateCommandTopic_.data(), updateCommandTopic_.size(), "update/trigger");
+  formatTopic(intervalCommandTopic_.data(), intervalCommandTopic_.size(), "interval/set");
+  formatTopic(intervalStateTopic_.data(), intervalStateTopic_.size(), "interval/state");
+  formatTopic(activityStateTopic_.data(), activityStateTopic_.size(), "activity/state");
+
   printf("[MQTTClient] Initializing MQTT integration...\n");
 
   if (not wifiReady_)
@@ -101,6 +111,24 @@ void MQTTClient::loop(const uint32_t nowMs)
   }
 
   ensureMqtt(nowMs);
+
+  if (isConnected())
+  {
+    if (needsDiscovery_)
+    {
+      publishDiscovery();
+      needsDiscovery_ = false;
+    }
+    if (needsInitialPublish_)
+    {
+      if (hasData_)
+      {
+        publishSensorState(nowMs, lastData_, irrigationController_->isWatering(), true);
+      }
+      publishIntervalState();
+      needsInitialPublish_ = false;
+    }
+  }
 }
 
 void MQTTClient::publishSensorState(const uint32_t nowMs, const SensorData& data, const bool watering, const bool force)
@@ -233,13 +261,26 @@ void MQTTClient::publishDiscovery()
   }
 
   publishSensorDiscovery("sensor", "temperature", "Temperature", "{{ value_json.temperature }}", "°C", "temperature");
+  sleep_ms(50);
   publishSensorDiscovery("sensor", "humidity", "Humidity", "{{ value_json.humidity }}", "%", "humidity");
+  sleep_ms(50);
   publishSensorDiscovery("sensor", "pressure", "Air Pressure", "{{ value_json.pressure }}", "hPa", "pressure");
+  sleep_ms(50);
   publishSensorDiscovery("sensor", "soil", "Soil Moisture", "{{ value_json.soil_moisture }}", "%", "moisture");
+  sleep_ms(50);
   publishSensorDiscovery("sensor", "light", "Ambient Light", "{{ value_json.light_lux }}", "lx", "illuminance");
+  sleep_ms(50);
   publishSensorDiscovery("sensor", "water", "Water Level", "{{ value_json.water_level }}", "%");
-  publishSensorDiscovery("binary_sensor", "watering", "Irrigation Running", "{{ value_json.watering }}", {}, "running");
-  publishSwitchDiscovery();
+  sleep_ms(50);
+  publishSelectDiscovery();
+  sleep_ms(50);
+  publishButtonDiscovery();
+  sleep_ms(50);
+  publishUpdateTriggerDiscovery();
+  sleep_ms(50);
+  publishNumberDiscovery();
+  sleep_ms(50);
+  publishTextDiscovery();
 
   discoveryPublished_ = true;
 }
@@ -321,89 +362,54 @@ void MQTTClient::publishSensorDiscovery(std::string_view component, std::string_
   mqtt_publish(mqttClient_, topic.data(), payload.data(), static_cast<uint16_t>(offset), 1, 1, nullptr, nullptr);
 }
 
-void MQTTClient::publishSwitchDiscovery()
+void MQTTClient::publishIntervalState()
 {
-  std::array<char, 128> topic{};
-
-  const size_t topicLen = std::snprintf(topic.data(), topic.size(), "%s/switch/%s_water/config",
-                                        Config::MQTT::DEFAULT_DISCOVERY_PREFIX, Config::System::IDENTIFIER);
-  if (topicLen < 0 or topicLen >= topic.size())
+  if (mqttClient_ == nullptr)
   {
-    printf("[MQTTClient] Switch discovery topic truncated, skipping\n");
     return;
   }
-
-  std::array<char, 512> payload{};
-  int32_t               offset = 0;
-
-  const auto append = [&](const char* const fmt, const auto... args) -> auto
-  {
-    if (offset < 0)
-    {
-      return;
-    }
-    const auto   remaining = std::span(payload).subspan(offset);
-    const size_t written   = std::snprintf(remaining.data(), remaining.size(), fmt, args...);
-    if (written < 0 or written >= remaining.size())
-    {
-      offset = -1;
-    }
-    else
-    {
-      offset += written;
-    }
-  };
-
-  append(R"({"name":"Irrigation Switch","uniq_id":"%s_water","cmd_t":"%s","stat_t":"%s","avty_t":"%s")",
-         Config::System::IDENTIFIER, commandTopic_.data(), stateTopic_.data(), availabilityTopic_.data());
-
-  append(R"(,"pl_on":"ON","pl_off":"OFF","stat_on":"ON","stat_off":"OFF")");
-  append(R"(,"val_tpl":"{{ 'ON' if value_json.watering else 'OFF' }}")");
-
-  append(R"(,"device":{"ids":["%s"],"name":"%.*s"}})", Config::System::IDENTIFIER,
-         static_cast<int32_t>(Config::System::NAME.size()), Config::System::NAME.data());
-
-  if (offset < 0)
-  {
-    printf("[MQTTClient] Switch discovery payload truncated\n");
-    return;
-  }
-
-  mqtt_publish(mqttClient_, topic.data(), payload.data(), static_cast<uint16_t>(offset), 1, 1, nullptr, nullptr);
+  std::array<char, 16>        payload{};
+  [[maybe_unused]] const auto _ = std::snprintf(payload.data(), payload.size(), "%u", config_.publishIntervalMs / 1000);
+  mqtt_publish(mqttClient_, intervalStateTopic_.data(), payload.data(),
+               static_cast<uint16_t>(std::strlen(payload.data())), 1, 1, nullptr, nullptr);
 }
 
 void MQTTClient::subscribeToCommands()
 {
-  mqtt_subscribe(mqttClient_, commandTopic_.data(), 1, nullptr, nullptr);
+  mqtt_subscribe(mqttClient_, modeCommandTopic_.data(), 1, nullptr, nullptr);
+  mqtt_subscribe(mqttClient_, triggerCommandTopic_.data(), 1, nullptr, nullptr);
+  mqtt_subscribe(mqttClient_, updateCommandTopic_.data(), 1, nullptr, nullptr);
+  mqtt_subscribe(mqttClient_, intervalCommandTopic_.data(), 1, nullptr, nullptr);
 }
 
-void MQTTClient::handleCommand(const std::string_view payload)
+void MQTTClient::handleCommand(const std::string_view topic, const std::string_view payload)
 {
   if (payload.empty())
   {
     return;
   }
 
-  printf("[MQTTClient] Command received: %.*s\n", static_cast<int32_t>(payload.size()), payload.data());
+  printf("[MQTTClient] Command received on %.*s: %.*s\n", static_cast<int32_t>(topic.size()), topic.data(),
+         static_cast<int32_t>(payload.size()), payload.data());
 
-  if (payload == "ON")
+  if (topic == std::string_view(modeCommandTopic_.data()))
   {
-    irrigationController_->setMode(IrrigationMode::MANUAL);
-    irrigationController_->startWatering(Config::DEFAULT_WATERING_DURATION_MS);
+    handleModeCommand(payload);
   }
-  else if (payload == "OFF")
+  else if (topic == std::string_view(triggerCommandTopic_.data()))
   {
-    irrigationController_->stopWatering();
-    irrigationController_->setMode(IrrigationMode::OFF);
+    handleTriggerCommand(payload);
   }
-  else if (payload == "HUMIDITY")
+  else if (topic == std::string_view(updateCommandTopic_.data()))
   {
-    irrigationController_->setMode(IrrigationMode::HUMIDITY);
+    if (payload == "PRESS")
+    {
+      requestUpdate();
+    }
   }
-
-  if (hasData_)
+  else if (topic == std::string_view(intervalCommandTopic_.data()))
   {
-    publishSensorState(lastPublish_, lastData_, irrigationController_->isWatering(), true);
+    handleIntervalCommand(payload);
   }
 }
 
@@ -424,13 +430,10 @@ void MQTTClient::mqttConnectionCb(mqtt_client_t* const client, void* const arg, 
   self->connectionState_       = ConnectionState::CONNECTED;
   self->mqttBackoffMultiplier_ = 1;
   self->publishAvailability(true);
-  self->publishDiscovery();
   self->subscribeToCommands();
 
-  if (self->hasData_)
-  {
-    self->publishSensorState(self->lastPublish_, self->lastData_, self->irrigationController_->isWatering(), true);
-  }
+  self->needsDiscovery_      = true;
+  self->needsInitialPublish_ = true;
 }
 
 void MQTTClient::mqttIncomingPublishCb(void* const arg, const char* const topic, const uint32_t tot_len)
@@ -454,9 +457,283 @@ void MQTTClient::mqttIncomingDataCb(void* const arg, const uint8_t* const data, 
   std::memcpy(self->incomingBuffer_.data(), data, copyLen);
   self->incomingBuffer_.at(copyLen) = '\0';
 
-  if (std::strcmp(self->lastIncomingTopic_.data(), self->commandTopic_.data()) == 0)
+  self->handleCommand(self->lastIncomingTopic_.data(), std::string_view(self->incomingBuffer_.data(), copyLen));
+}
+
+void MQTTClient::setPublishInterval(const uint32_t intervalMs)
+{
+  config_.publishIntervalMs = intervalMs;
+  if (mqttClient_ != nullptr)
   {
-    self->handleCommand(std::string_view(self->incomingBuffer_.data(), copyLen));
+    std::array<char, 16>        payload{};
+    [[maybe_unused]] const auto _ = std::snprintf(payload.data(), payload.size(), "%u", intervalMs / 1000);
+    mqtt_publish(mqttClient_, intervalStateTopic_.data(), payload.data(),
+                 static_cast<uint16_t>(std::strlen(payload.data())), 1, 1, nullptr, nullptr);
+  }
+}
+
+void MQTTClient::publishActivity(const std::string_view message)
+{
+  if (mqttClient_ == nullptr)
+  {
+    return;
+  }
+  mqtt_publish(mqttClient_, activityStateTopic_.data(), message.data(), static_cast<uint16_t>(message.size()), 1, 1,
+               nullptr, nullptr);
+}
+
+void MQTTClient::publishSelectDiscovery()
+{
+  std::array<char, 128>       topic{};
+  [[maybe_unused]] const auto _ = std::snprintf(topic.data(), topic.size(), "%s/select/%s_mode/config",
+                                                config_.discoveryPrefix.data(), Config::System::IDENTIFIER);
+
+  std::array<char, 512> payload{};
+  int32_t               offset = 0;
+
+  const auto append = [&](const char* const fmt, const auto... args) -> auto
+  {
+    if (offset < 0)
+    {
+      return;
+    }
+    const auto   remaining = std::span(payload).subspan(offset);
+    const size_t written   = std::snprintf(remaining.data(), remaining.size(), fmt, args...);
+    if (written < 0 or written >= remaining.size())
+    {
+      offset = -1;
+    }
+    else
+    {
+      offset += written;
+    }
+  };
+
+  append(R"({"name":"Irrigation Mode","uniq_id":"%s_mode","cmd_t":"%s","stat_t":"%s","avty_t":"%s")",
+         Config::System::IDENTIFIER, modeCommandTopic_.data(), modeStateTopic_.data(), availabilityTopic_.data());
+  append(R"(,"options":["OFF","MANUAL","TIMER","HUMIDITY","EVAPOTRANSPIRATION"])");
+  append(R"(,"device":{"ids":["%s"],"name":"%.*s"}})", Config::System::IDENTIFIER,
+         static_cast<int32_t>(Config::System::NAME.size()), Config::System::NAME.data());
+
+  if (offset > 0)
+  {
+    mqtt_publish(mqttClient_, topic.data(), payload.data(), static_cast<uint16_t>(offset), 1, 1, nullptr, nullptr);
+  }
+}
+
+void MQTTClient::publishButtonDiscovery()
+{
+  std::array<char, 128> topic{};
+
+  [[maybe_unused]] const auto _ = std::snprintf(topic.data(), topic.size(), "%s/button/%s_trigger/config",
+                                                config_.discoveryPrefix.data(), Config::System::IDENTIFIER);
+
+  std::array<char, 512> payload{};
+  int32_t               offset = 0;
+
+  const auto append = [&](const char* const fmt, const auto... args) -> auto
+  {
+    if (offset < 0)
+    {
+      return;
+    }
+    const auto   remaining = std::span(payload).subspan(offset);
+    const size_t written   = std::snprintf(remaining.data(), remaining.size(), fmt, args...);
+    if (written < 0 or written >= remaining.size())
+    {
+      offset = -1;
+    }
+    else
+    {
+      offset += written;
+    }
+  };
+
+  append(R"({"name":"Trigger Irrigation","uniq_id":"%s_trigger","cmd_t":"%s","avty_t":"%s")",
+         Config::System::IDENTIFIER, triggerCommandTopic_.data(), availabilityTopic_.data());
+  append(R"(,"device":{"ids":["%s"],"name":"%.*s"}})", Config::System::IDENTIFIER,
+         static_cast<int32_t>(Config::System::NAME.size()), Config::System::NAME.data());
+
+  if (offset > 0)
+  {
+    mqtt_publish(mqttClient_, topic.data(), payload.data(), static_cast<uint16_t>(offset), 1, 1, nullptr, nullptr);
+  }
+}
+
+void MQTTClient::publishUpdateTriggerDiscovery()
+{
+  std::array<char, 128> topic{};
+
+  [[maybe_unused]] const auto _ = std::snprintf(topic.data(), topic.size(), "%s/button/%s_update/config",
+                                                config_.discoveryPrefix.data(), Config::System::IDENTIFIER);
+
+  std::array<char, 512> payload{};
+  int32_t               offset = 0;
+
+  const auto append = [&](const char* const fmt, const auto... args) -> auto
+  {
+    if (offset < 0)
+    {
+      return;
+    }
+    const auto   remaining = std::span(payload).subspan(offset);
+    const size_t written   = std::snprintf(remaining.data(), remaining.size(), fmt, args...);
+    if (written < 0 or written >= remaining.size())
+    {
+      offset = -1;
+    }
+    else
+    {
+      offset += written;
+    }
+  };
+
+  append(R"({"name":"Update Sensors","uniq_id":"%s_update","cmd_t":"%s","avty_t":"%s")", Config::System::IDENTIFIER,
+         updateCommandTopic_.data(), availabilityTopic_.data());
+  append(R"(,"device":{"ids":["%s"],"name":"%.*s"}})", Config::System::IDENTIFIER,
+         static_cast<int32_t>(Config::System::NAME.size()), Config::System::NAME.data());
+
+  if (offset > 0)
+  {
+    mqtt_publish(mqttClient_, topic.data(), payload.data(), static_cast<uint16_t>(offset), 1, 1, nullptr, nullptr);
+  }
+}
+
+void MQTTClient::publishNumberDiscovery()
+{
+  std::array<char, 128> topic{};
+
+  [[maybe_unused]] const auto _ = std::snprintf(topic.data(), topic.size(), "%s/number/%s_interval/config",
+                                                config_.discoveryPrefix.data(), Config::System::IDENTIFIER);
+
+  std::array<char, 512> payload{};
+  int32_t               offset = 0;
+
+  const auto append = [&](const char* const fmt, const auto... args) -> auto
+  {
+    if (offset < 0)
+    {
+      return;
+    }
+    const auto   remaining = std::span(payload).subspan(offset);
+    const size_t written   = std::snprintf(remaining.data(), remaining.size(), fmt, args...);
+    if (written < 0 or written >= remaining.size())
+    {
+      offset = -1;
+    }
+    else
+    {
+      offset += written;
+    }
+  };
+
+  append(R"({"name":"Update Interval","uniq_id":"%s_interval","cmd_t":"%s","stat_t":"%s","avty_t":"%s")",
+         Config::System::IDENTIFIER, intervalCommandTopic_.data(), intervalStateTopic_.data(),
+         availabilityTopic_.data());
+  append(R"(,"min":60,"max":86400,"unit_of_meas":"s")");
+  append(R"(,"device":{"ids":["%s"],"name":"%.*s"}})", Config::System::IDENTIFIER,
+         static_cast<int32_t>(Config::System::NAME.size()), Config::System::NAME.data());
+
+  if (offset > 0)
+  {
+    mqtt_publish(mqttClient_, topic.data(), payload.data(), static_cast<uint16_t>(offset), 1, 1, nullptr, nullptr);
+  }
+}
+
+void MQTTClient::publishTextDiscovery()
+{
+  std::array<char, 128> topic{};
+
+  [[maybe_unused]] const auto _ = std::snprintf(topic.data(), topic.size(), "%s/text/%s_activity/config",
+                                                config_.discoveryPrefix.data(), Config::System::IDENTIFIER);
+
+  std::array<char, 512> payload{};
+  int32_t               offset = 0;
+
+  const auto append = [&](const char* const fmt, const auto... args) -> auto
+  {
+    if (offset < 0)
+    {
+      return;
+    }
+    const auto   remaining = std::span(payload).subspan(offset);
+    const size_t written   = std::snprintf(remaining.data(), remaining.size(), fmt, args...);
+    if (written < 0 or written >= remaining.size())
+    {
+      offset = -1;
+    }
+    else
+    {
+      offset += written;
+    }
+  };
+
+  append(R"({"name":"Activity Log","uniq_id":"%s_activity","stat_t":"%s","avty_t":"%s")", Config::System::IDENTIFIER,
+         activityStateTopic_.data(), availabilityTopic_.data());
+  append(R"(,"device":{"ids":["%s"],"name":"%.*s"}})", Config::System::IDENTIFIER,
+         static_cast<int32_t>(Config::System::NAME.size()), Config::System::NAME.data());
+
+  if (offset > 0)
+  {
+    mqtt_publish(mqttClient_, topic.data(), payload.data(), static_cast<uint16_t>(offset), 1, 1, nullptr, nullptr);
+  }
+}
+
+void MQTTClient::handleModeCommand(const std::string_view payload)
+{
+  IrrigationMode mode = IrrigationMode::OFF;
+  if (payload == "OFF")
+  {
+    mode = IrrigationMode::OFF;
+  }
+  else if (payload == "MANUAL")
+  {
+    mode = IrrigationMode::MANUAL;
+  }
+  else if (payload == "TIMER")
+  {
+    mode = IrrigationMode::TIMER;
+  }
+  else if (payload == "HUMIDITY")
+  {
+    mode = IrrigationMode::HUMIDITY;
+  }
+  else if (payload == "EVAPOTRANSPIRATION")
+  {
+    mode = IrrigationMode::EVAPOTRANSPIRATION;
+  }
+  else
+  {
+    return;
+  }
+
+  irrigationController_->setMode(mode);
+  mqtt_publish(mqttClient_, modeStateTopic_.data(), payload.data(), static_cast<uint16_t>(payload.size()), 1, 1,
+               nullptr, nullptr);
+}
+
+void MQTTClient::handleTriggerCommand(const std::string_view payload)
+{
+  if (payload == "PRESS" and irrigationController_->getMode() == IrrigationMode::MANUAL)
+  {
+    const auto waterLevel = sensorManager_->readWaterLevel();
+    if (waterLevel.isEmpty())
+    {
+      printf("[MQTTClient] Trigger ignored: Water tank is empty\n");
+      publishActivity("Trigger ignored: Empty tank");
+      return;
+    }
+
+    irrigationController_->startWatering(Config::DEFAULT_WATERING_DURATION_MS);
+  }
+}
+
+void MQTTClient::handleIntervalCommand(const std::string_view payload)
+{
+  const auto intervalSec = std::strtoul(payload.data(), nullptr, 10);
+  if (intervalSec >= 60 and intervalSec <= 86400)
+  {
+    setPublishInterval(intervalSec * 1000);
   }
 }
 

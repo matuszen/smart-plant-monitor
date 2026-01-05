@@ -40,19 +40,11 @@ target_include_directories(freertos_config SYSTEM INTERFACE
 target_compile_definitions(freertos_config INTERFACE projCOVERAGE_TEST=0)
 include(${FREERTOS_KERNEL_PATH}/portable/ThirdParty/GCC/RP2350_ARM_NTZ/FreeRTOS_Kernel_import.cmake)
 
-set(SOURCES
-    src/main.cpp
-    src/EnvironmentalSensor.cpp
-    src/SensorManager.cpp
-    src/IrrigationController.cpp
-    src/WaterLevelSensor.cpp
-    src/LightSensor.cpp
-    src/MQTTClient.cpp
-    src/SoilMoistureSensor.cpp
-    src/AppTasks.cpp
-    src/ConnectionManager.cpp
-    src/FlashManager.cpp
-    libs/src/dhcpserver.c
+file(GLOB_RECURSE SOURCES
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/*.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/libs/src/*.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/libs/src/*.c"
 )
 
 add_executable(smart_plant_monitor ${SOURCES})

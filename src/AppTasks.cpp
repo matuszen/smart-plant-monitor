@@ -249,9 +249,8 @@ void ledTask(void* const /*params*/)
   while (true)
   {
     const auto now = nowMs();
-    auto       led = readLedState();
+    const auto led = readLedState();
 
-    // Status LED: Only on when active (watering or reading sensors)
     gpio_put(Config::LED_STATUS_PIN, led.activity);
 
     switch (led.network)
@@ -364,7 +363,7 @@ void buttonTask(void* const /*params*/)
 }
 
 auto handleSensorRead(const uint32_t now, SensorManager& sensorManager, IrrigationController& irrigationController,
-                      MQTTClient& mqttClient) -> SensorData
+                      MQTTClient& mqttClient, bool force = false) -> SensorData
 {
   printf("[%u] Reading sensors...\n", now);
 
@@ -379,7 +378,7 @@ auto handleSensorRead(const uint32_t now, SensorManager& sensorManager, Irrigati
 
   irrigationController.update(data);
 
-  mqttClient.publishSensorState(now, data, irrigationController.isWatering());
+  mqttClient.publishSensorState(now, data, irrigationController.isWatering(), force);
 
   return data;
 }
@@ -405,9 +404,10 @@ void handleWaterLevelError(const uint32_t now, uint32_t& lastSensorRead, bool& w
 }
 
 void handleNormalSensorRead(const uint32_t now, uint32_t& lastSensorRead, bool& waterLevelError,
-                            SensorManager& sensorManager, IrrigationController& irrigationController, MQTTClient& ctx)
+                            SensorManager& sensorManager, IrrigationController& irrigationController, MQTTClient& ctx,
+                            bool force = false)
 {
-  const auto data = handleSensorRead(now, sensorManager, irrigationController, ctx);
+  const auto data = handleSensorRead(now, sensorManager, irrigationController, ctx, force);
   waterLevelError = (data.water.isValid() and data.water.isLow());
   lastSensorRead  = now;
 }
@@ -440,6 +440,7 @@ void sensorTask(void* const params)
   {
     sensorReadInterval = Config::DEFAULT_SENSOR_READ_INTERVAL_MS;
   }
+  ctx.setPublishInterval(sensorReadInterval);
 
   auto               lastSensorRead       = sensorReadInterval;
   constexpr uint32_t sensorTaskTickMs     = 100;
@@ -454,6 +455,7 @@ void sensorTask(void* const params)
   {
     const auto now = nowMs();
     ctx.loop(now);
+    sensorReadInterval = ctx.getPublishInterval();
 
     if (ctx.isConnected())
     {
@@ -473,19 +475,41 @@ void sensorTask(void* const params)
 
     if (wasWatering and not isWatering)
     {
+      ctx.publishActivity("Irrigation finished");
       scheduledReadTime       = now + 60'000;
       pendingPostWateringRead = true;
     }
+    else if (not wasWatering and isWatering)
+    {
+      ctx.publishActivity("Irrigation started");
+    }
     wasWatering = isWatering;
 
-    bool shouldRead     = shouldPerformSensorRead(now, lastSensorRead, sensorReadInterval, waterLevelError);
-    bool onlyWaterLevel = waterLevelError and (now - lastSensorRead >= errorRetryIntervalMs);
+    bool shouldRead     = false;
+    bool onlyWaterLevel = false;
+    bool forceUpdate    = false;
 
-    if (pendingPostWateringRead and now >= scheduledReadTime)
+    if (ctx.isUpdateRequested())
     {
-      shouldRead              = true;
-      onlyWaterLevel          = false;
-      pendingPostWateringRead = false;
+      shouldRead  = true;
+      forceUpdate = true;
+      ctx.clearUpdateRequest();
+    }
+    else
+    {
+      const bool isManualMode = (irrigationController.getMode() == IrrigationMode::MANUAL);
+      if (not isManualMode)
+      {
+        shouldRead     = shouldPerformSensorRead(now, lastSensorRead, sensorReadInterval, waterLevelError);
+        onlyWaterLevel = waterLevelError and (now - lastSensorRead >= errorRetryIntervalMs);
+      }
+
+      if (pendingPostWateringRead and now >= scheduledReadTime)
+      {
+        shouldRead              = true;
+        onlyWaterLevel          = false;
+        pendingPostWateringRead = false;
+      }
     }
 
     if (shouldRead)
@@ -498,7 +522,8 @@ void sensorTask(void* const params)
       }
       else
       {
-        handleNormalSensorRead(now, lastSensorRead, waterLevelError, sensorManager, irrigationController, ctx);
+        handleNormalSensorRead(now, lastSensorRead, waterLevelError, sensorManager, irrigationController, ctx,
+                               forceUpdate);
       }
 
       setActivityLedState(irrigationController.isWatering());

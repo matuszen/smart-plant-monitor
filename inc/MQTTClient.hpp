@@ -26,6 +26,13 @@ public:
   [[nodiscard]] auto init(const MqttConfig& config) -> bool;
   void               loop(uint32_t nowMs);
   void               publishSensorState(uint32_t nowMs, const SensorData& data, bool watering, bool force = false);
+  void               publishActivity(std::string_view message);
+
+  void               setPublishInterval(uint32_t intervalMs);
+  [[nodiscard]] auto getPublishInterval() const noexcept -> uint32_t
+  {
+    return config_.publishIntervalMs;
+  }
 
   [[nodiscard]] auto getSensorManager() const noexcept -> SensorManager*
   {
@@ -44,6 +51,19 @@ public:
     wifiReady_ = ready;
   }
 
+  void requestUpdate()
+  {
+    updateRequest_ = true;
+  }
+  [[nodiscard]] auto isUpdateRequested() const -> bool
+  {
+    return updateRequest_;
+  }
+  void clearUpdateRequest()
+  {
+    updateRequest_ = false;
+  }
+
 private:
   enum class ConnectionState : uint8_t
   {
@@ -58,11 +78,19 @@ private:
   void publishAvailability(bool online);
   void publishSensorDiscovery(std::string_view component, std::string_view objectId, std::string_view name,
                               std::string_view valueTemplate, std::string_view unit, std::string_view deviceClass = {});
-  void publishSwitchDiscovery();
+  void publishSelectDiscovery();
+  void publishButtonDiscovery();
+  void publishNumberDiscovery();
+  void publishTextDiscovery();
+  void publishIntervalState();
+  void publishUpdateTriggerDiscovery();
 
   void connectMqtt();
   void subscribeToCommands();
-  void handleCommand(std::string_view payload);
+  void handleCommand(std::string_view topic, std::string_view payload);
+  void handleModeCommand(std::string_view payload);
+  void handleTriggerCommand(std::string_view payload);
+  void handleIntervalCommand(std::string_view payload);
 
   [[nodiscard]] auto resolveBrokerIp() -> bool;
   void               handleDnsResult(const ip_addr_t* result);
@@ -82,13 +110,23 @@ private:
   bool            wifiReady_{false};
   ConnectionState connectionState_{ConnectionState::DISCONNECTED};
   bool            discoveryPublished_{false};
+  bool            needsDiscovery_{false};
+  bool            needsInitialPublish_{false};
+  bool            updateRequest_{false};
 
   uint32_t lastMqttAttempt_{0};
   uint32_t lastPublish_{0};
   uint32_t mqttBackoffMultiplier_{1};
 
-  SensorData lastData_{};
-  bool       hasData_{false};
+  SensorData           lastData_{};
+  bool                 hasData_{false};
+  std::array<char, 64> modeCommandTopic_{};
+  std::array<char, 64> modeStateTopic_{};
+  std::array<char, 64> triggerCommandTopic_{};
+  std::array<char, 64> updateCommandTopic_{};
+  std::array<char, 64> intervalCommandTopic_{};
+  std::array<char, 64> intervalStateTopic_{};
+  std::array<char, 64> activityStateTopic_{};
 
   std::array<char, 64> availabilityTopic_{};
   std::array<char, 64> stateTopic_{};
