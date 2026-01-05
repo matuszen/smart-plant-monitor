@@ -2,6 +2,8 @@ add_library(target_network)
 target_sources(target_network PRIVATE
     src/dhcpserver.c
     src/MQTTClient.cpp
+    src/WifiDriver.cpp
+    src/MqttTransport.cpp
 )
 target_include_directories(target_network PUBLIC
     inc

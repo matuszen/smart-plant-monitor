@@ -36,8 +36,8 @@ public:
 
   [[nodiscard]] static auto getFlashAddress(uint32_t offset) -> uint32_t;
 
-  [[nodiscard]] static auto loadConfig(SystemConfig& config) -> bool;
-  [[nodiscard]] static auto saveConfig(const SystemConfig& config) -> bool;
+  static auto loadConfig(SystemConfig& config) -> bool;
+  static auto saveConfig(const SystemConfig& config) -> bool;
 
   [[nodiscard]] static auto flushOutputBuffers() -> bool;
 

@@ -1,18 +1,14 @@
-#include <pico/cyw43_arch.h>  // IWYU pragma: keep
-
-#include "Config.hpp"
 #include "ConnectionManager.hpp"
+#include "Config.hpp"
 #include "FlashManager.hpp"
 #include "SensorManager.hpp"
 #include "Types.hpp"
+#include "WifiDriver.hpp"
 
-#include "dhcpserver.h"
 #include "web/provision_page.html"
 
 #include <FreeRTOS.h>
 #include <boards/pico2_w.h>
-#include <cyw43.h>
-#include <cyw43_ll.h>
 #include <hardware/flash.h>
 #include <hardware/regs/addressmap.h>
 #include <hardware/sync.h>
@@ -119,29 +115,29 @@ void sendResponse(const int32_t client, const std::string_view body, const char*
 
 auto configToJson(const SystemConfig& cfg) -> std::string
 {
-  std::array<char, 2048>      buf{};
-  [[maybe_unused]] const auto _ = std::snprintf(
-    buf.data(), buf.size(),
-    "{"
-    "\"wifi_ssid\":\"%s\","
-    "\"wifi_pass\":\"%s\","
-    "\"ap_ssid\":\"%s\","
-    "\"ap_pass\":\"%s\","
-    "\"mqtt_host\":\"%s\","
-    "\"mqtt_port\":%d,"
-    "\"mqtt_client_id\":\"%s\","
-    "\"mqtt_user\":\"%s\","
-    "\"mqtt_pass\":\"%s\","
-    "\"mqtt_prefix\":\"%s\","
-    "\"mqtt_topic\":\"%s\","
-    "\"mqtt_interval\":%u,"
-    "\"sensor_interval\":%u,"
-    "\"irrigation_mode\":%d"
-    "}",
-    cfg.wifi.ssid.data(), cfg.wifi.pass.data(), cfg.ap.ssid.data(), cfg.ap.pass.data(), cfg.mqtt.brokerHost.data(),
-    cfg.mqtt.brokerPort, cfg.mqtt.clientId.data(), cfg.mqtt.username.data(), cfg.mqtt.password.data(),
-    cfg.mqtt.discoveryPrefix.data(), cfg.mqtt.baseTopic.data(), cfg.mqtt.publishIntervalMs / 1000,
-    cfg.sensorReadIntervalMs / 1000, static_cast<int>(cfg.irrigationMode));
+  std::array<char, 2048> buf{};
+  (void)std::snprintf(buf.data(), buf.size(),
+                      "{"
+                      "\"wifi_ssid\":\"%s\","
+                      "\"wifi_pass\":\"%s\","
+                      "\"ap_ssid\":\"%s\","
+                      "\"ap_pass\":\"%s\","
+                      "\"mqtt_host\":\"%s\","
+                      "\"mqtt_port\":%d,"
+                      "\"mqtt_client_id\":\"%s\","
+                      "\"mqtt_user\":\"%s\","
+                      "\"mqtt_pass\":\"%s\","
+                      "\"mqtt_prefix\":\"%s\","
+                      "\"mqtt_topic\":\"%s\","
+                      "\"mqtt_interval\":%u,"
+                      "\"sensor_interval\":%u,"
+                      "\"irrigation_mode\":%d"
+                      "}",
+                      cfg.wifi.ssid.data(), cfg.wifi.pass.data(), cfg.ap.ssid.data(), cfg.ap.pass.data(),
+                      cfg.mqtt.brokerHost.data(), cfg.mqtt.brokerPort, cfg.mqtt.clientId.data(),
+                      cfg.mqtt.username.data(), cfg.mqtt.password.data(), cfg.mqtt.discoveryPrefix.data(),
+                      cfg.mqtt.baseTopic.data(), cfg.mqtt.publishIntervalMs / 1000, cfg.sensorReadIntervalMs / 1000,
+                      static_cast<int>(cfg.irrigationMode));
   return {buf.data()};
 }
 
@@ -149,20 +145,19 @@ auto sensorsToJson(SensorManager& sm) -> std::string
 {
   const auto data = sm.readAllSensors();
 
-  std::array<char, 512>       buf{};
-  [[maybe_unused]] const auto _ =
-    std::snprintf(buf.data(), buf.size(),
-                  "{"
-                  "\"Temperature\":\"%.1f C\","
-                  "\"Humidity\":\"%.1f %% \","
-                  "\"Pressure\":\"%.1f hPa\","
-                  "\"Soil Moisture\":\"%.1f %%\","
-                  "\"Water Level\":\"%.1f %%\","
-                  "\"Light\":\"%.1f lux\""
-                  "}",
-                  static_cast<double>(data.environment.temperature), static_cast<double>(data.environment.humidity),
-                  static_cast<double>(data.environment.pressure), static_cast<double>(data.soil.percentage),
-                  static_cast<double>(data.water.percentage), static_cast<double>(data.light.lux));
+  std::array<char, 512> buf{};
+  (void)std::snprintf(buf.data(), buf.size(),
+                      "{"
+                      "\"Temperature\":\"%.1f C\","
+                      "\"Humidity\":\"%.1f %% \","
+                      "\"Pressure\":\"%.1f hPa\","
+                      "\"Soil Moisture\":\"%.1f %%\","
+                      "\"Water Level\":\"%.1f %%\","
+                      "\"Light\":\"%.1f lux\""
+                      "}",
+                      static_cast<double>(data.environment.temperature), static_cast<double>(data.environment.humidity),
+                      static_cast<double>(data.environment.pressure), static_cast<double>(data.soil.percentage),
+                      static_cast<double>(data.water.percentage), static_cast<double>(data.light.lux));
   return {buf.data()};
 }
 
@@ -242,44 +237,6 @@ void updateConfigFromJson(SystemConfig& cfg, const std::string_view json)
   }
 }
 
-void applyHostname(const char* const hostname)
-{
-  netif_set_hostname(&cyw43_state.netif[CYW43_ITF_STA], hostname);
-  netif_set_hostname(&cyw43_state.netif[CYW43_ITF_AP], hostname);
-  printf("[WiFi] Hostname set to '%s'\n", hostname);
-}
-
-void logNetifInfo(const char* const label, const netif* const nif)
-{
-  if (nif == nullptr)
-  {
-    return;
-  }
-
-  std::array<char, 16> ipBuf{};
-  std::array<char, 16> gwBuf{};
-  std::array<char, 16> maskBuf{};
-
-  const auto* ipStr = ip4addr_ntoa(netif_ip4_addr(nif));
-  if (ipStr != nullptr)
-  {
-    std::strncpy(ipBuf.data(), ipStr, ipBuf.size() - 1);
-  }
-  const auto* gwStr = ip4addr_ntoa(netif_ip4_gw(nif));
-  if (gwStr != nullptr)
-  {
-    std::strncpy(gwBuf.data(), gwStr, gwBuf.size() - 1);
-  }
-  const auto* maskStr = ip4addr_ntoa(netif_ip4_netmask(nif));
-  if (maskStr != nullptr)
-  {
-    std::strncpy(maskBuf.data(), maskStr, maskBuf.size() - 1);
-  }
-
-  printf("[WiFi] %s IP=%s Gateway=%s Mask=%s\n", label, (ipBuf[0] != '\0') ? ipBuf.data() : "n/a",
-         (gwBuf[0] != '\0') ? gwBuf.data() : "n/a", (maskBuf[0] != '\0') ? maskBuf.data() : "n/a");
-}
-
 auto handleClientRequest(const int32_t client, SystemConfig& config, bool& rebootRequested, SensorManager& sm) -> bool
 {
   std::array<char, 2048> buf{};
@@ -341,7 +298,7 @@ auto handleClientRequest(const int32_t client, SystemConfig& config, bool& reboo
       {
         const auto body = request.substr(bodyPos + 4);
         updateConfigFromJson(config, body);
-        [[maybe_unused]] const auto _ = FlashManager::saveConfig(config);
+        FlashManager::saveConfig(config);
         sendResponse(client, R"({"status":"ok"})", "application/json");
         rebootRequested = true;
       }
@@ -351,127 +308,9 @@ auto handleClientRequest(const int32_t client, SystemConfig& config, bool& reboo
   return true;
 }
 
-}  // namespace
-
-auto ConnectionManager::init() -> bool
+auto runProvisioningLoop(int server, SystemConfig& config, uint32_t timeoutMs, const volatile bool* cancelFlag,
+                         SensorManager& sensorManager) -> bool
 {
-  if (initialized_)
-  {
-    return true;
-  }
-
-  if (cyw43_arch_init() != 0) [[unlikely]]
-  {
-    printf("[WiFi] cyw43_arch_init failed\n");
-    return false;
-  }
-
-  applyHostname(Config::WiFi::HOSTNAME);
-  cyw43_arch_enable_sta_mode();
-  initialized_ = true;
-  return true;
-}
-
-auto ConnectionManager::connectSta(const WifiCredentials& creds) -> bool
-{
-  if (not creds.valid) [[unlikely]]
-  {
-    connected_ = false;
-    return false;
-  }
-
-  if (not init()) [[unlikely]]
-  {
-    connected_ = false;
-    return false;
-  }
-
-  cyw43_arch_enable_sta_mode();
-
-  provisioning_ = false;
-  printf("[WiFi] Connecting to SSID '%s'...\n", creds.ssid.data());
-  const auto response = cyw43_arch_wifi_connect_timeout_ms(creds.ssid.data(), creds.pass.data(),
-                                                           CYW43_AUTH_WPA2_AES_PSK, WIFI_CONNECT_TIMEOUT_MS);
-  if (response != 0) [[unlikely]]
-  {
-    printf("[WiFi] Connection failed (%d)\n", response);
-    connected_ = false;
-    return false;
-  }
-  printf("[WiFi] Connected\n");
-  logNetifInfo("STA", &cyw43_state.netif[CYW43_ITF_STA]);
-  connected_ = true;
-  return true;
-}
-
-auto ConnectionManager::startApAndServe(const uint32_t timeoutMs, SensorManager& sensorManager,
-                                        const volatile bool* const cancelFlag) -> bool
-{
-  if (not init())
-  {
-    provisioning_ = false;
-    return false;
-  }
-
-  provisioning_ = true;
-  connected_    = false;
-
-  cyw43_arch_disable_sta_mode();
-
-  auto config = SystemConfig{};
-  if (not FlashManager::loadConfig(config))
-  {
-    config                      = {};
-    config.sensorReadIntervalMs = Config::DEFAULT_SENSOR_READ_INTERVAL_MS;
-    config.irrigationMode       = Config::DEFAULT_IRRIGATION_MODE;
-    std::strncpy(config.ap.ssid.data(), Config::AP::DEFAULT_SSID, config.ap.ssid.size() - 1);
-    std::strncpy(config.ap.pass.data(), Config::AP::DEFAULT_PASS, config.ap.pass.size() - 1);
-    std::strncpy(config.wifi.ssid.data(), Config::WiFi::DEFAULT_SSID, config.wifi.ssid.size() - 1);
-    std::strncpy(config.wifi.pass.data(), Config::WiFi::DEFAULT_PASS, config.wifi.pass.size() - 1);
-    config.mqtt.brokerPort        = Config::MQTT::DEFAULT_BROKER_PORT;
-    config.mqtt.publishIntervalMs = Config::MQTT::DEFAULT_PUBLISH_INTERVAL_MS;
-    std::strncpy(config.mqtt.brokerHost.data(), Config::MQTT::DEFAULT_BROKER_HOST, config.mqtt.brokerHost.size() - 1);
-    std::strncpy(config.mqtt.clientId.data(), Config::MQTT::DEFAULT_CLIENT_ID, config.mqtt.clientId.size() - 1);
-    std::strncpy(config.mqtt.username.data(), Config::MQTT::DEFAULT_USERNAME, config.mqtt.username.size() - 1);
-    std::strncpy(config.mqtt.password.data(), Config::MQTT::DEFAULT_PASSWORD, config.mqtt.password.size() - 1);
-    std::strncpy(config.mqtt.discoveryPrefix.data(), Config::MQTT::DEFAULT_DISCOVERY_PREFIX,
-                 config.mqtt.discoveryPrefix.size() - 1);
-    std::strncpy(config.mqtt.baseTopic.data(), Config::MQTT::DEFAULT_BASE_TOPIC, config.mqtt.baseTopic.size() - 1);
-  }
-
-  const auto* apSsid = (config.ap.ssid[0] != '\0') ? config.ap.ssid.data() : Config::AP::DEFAULT_SSID;
-  const auto* apPass = (config.ap.pass[0] != '\0') ? config.ap.pass.data() : Config::AP::DEFAULT_PASS;
-  printf("[WiFi] Starting AP '%s'...\n", apSsid);
-  cyw43_arch_enable_ap_mode(apSsid, apPass, CYW43_AUTH_WPA2_AES_PSK);
-
-  ip4_addr_t gw;
-  ip4_addr_t mask;
-  IP4_ADDR(&gw, 192, 168, 4, 1);
-  IP4_ADDR(&mask, 255, 255, 255, 0);
-
-  netif_set_addr(&cyw43_state.netif[CYW43_ITF_AP], &gw, &mask, &gw);
-
-  dhcp_server_t dhcpServer;
-  dhcp_server_init(&dhcpServer, &gw, &mask);
-  printf("[WiFi] DHCP Server started at 192.168.4.1\n");
-  logNetifInfo("AP", &cyw43_state.netif[CYW43_ITF_AP]);
-
-  const auto server = lwip_socket(AF_INET, SOCK_STREAM, 0);
-  if (server < 0)
-  {
-    printf("[WiFi] Socket create failed\n");
-    provisioning_ = false;
-    return false;
-  }
-
-  sockaddr_in addr{};
-  addr.sin_family      = AF_INET;
-  addr.sin_port        = htons(80);
-  addr.sin_addr.s_addr = PP_HTONL(INADDR_ANY);
-
-  lwip_bind(server, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr));
-  lwip_listen(server, 2);
-
   const auto startMs         = to_ms_since_boot(get_absolute_time());
   bool       rebootRequested = false;
 
@@ -534,10 +373,115 @@ auto ConnectionManager::startApAndServe(const uint32_t timeoutMs, SensorManager&
     vTaskDelay(pdMS_TO_TICKS(100));
     lwip_close(client);
   }
+  return rebootRequested;
+}
+
+}  // namespace
+
+auto ConnectionManager::init() -> bool
+{
+  if (initialized_)
+  {
+    return true;
+  }
+
+  if (not wifiDriver_.init()) [[unlikely]]
+  {
+    return false;
+  }
+
+  wifiDriver_.setHostname(Config::WiFi::HOSTNAME);
+  initialized_ = true;
+  return true;
+}
+
+auto ConnectionManager::connectSta(const WifiCredentials& creds) -> bool
+{
+  if (not creds.valid) [[unlikely]]
+  {
+    connected_ = false;
+    return false;
+  }
+
+  if (not init()) [[unlikely]]
+  {
+    connected_ = false;
+    return false;
+  }
+
+  provisioning_ = false;
+  if (not wifiDriver_.connectSta(creds.ssid.data(), creds.pass.data(), WIFI_CONNECT_TIMEOUT_MS))
+  {
+    connected_ = false;
+    return false;
+  }
+
+  connected_ = true;
+  return true;
+}
+
+auto ConnectionManager::startApAndServe(const uint32_t timeoutMs, SensorManager& sensorManager,
+                                        const volatile bool* const cancelFlag) -> bool
+{
+  if (not init())
+  {
+    provisioning_ = false;
+    return false;
+  }
+
+  provisioning_ = true;
+  connected_    = false;
+
+  auto config = SystemConfig{};
+  if (not FlashManager::loadConfig(config))
+  {
+    config                      = {};
+    config.sensorReadIntervalMs = Config::DEFAULT_SENSOR_READ_INTERVAL_MS;
+    config.irrigationMode       = Config::DEFAULT_IRRIGATION_MODE;
+    std::strncpy(config.ap.ssid.data(), Config::AP::DEFAULT_SSID, config.ap.ssid.size() - 1);
+    std::strncpy(config.ap.pass.data(), Config::AP::DEFAULT_PASS, config.ap.pass.size() - 1);
+    std::strncpy(config.wifi.ssid.data(), Config::WiFi::DEFAULT_SSID, config.wifi.ssid.size() - 1);
+    std::strncpy(config.wifi.pass.data(), Config::WiFi::DEFAULT_PASS, config.wifi.pass.size() - 1);
+    config.mqtt.brokerPort        = Config::MQTT::DEFAULT_BROKER_PORT;
+    config.mqtt.publishIntervalMs = Config::MQTT::DEFAULT_PUBLISH_INTERVAL_MS;
+    std::strncpy(config.mqtt.brokerHost.data(), Config::MQTT::DEFAULT_BROKER_HOST, config.mqtt.brokerHost.size() - 1);
+    std::strncpy(config.mqtt.clientId.data(), Config::MQTT::DEFAULT_CLIENT_ID, config.mqtt.clientId.size() - 1);
+    std::strncpy(config.mqtt.username.data(), Config::MQTT::DEFAULT_USERNAME, config.mqtt.username.size() - 1);
+    std::strncpy(config.mqtt.password.data(), Config::MQTT::DEFAULT_PASSWORD, config.mqtt.password.size() - 1);
+    std::strncpy(config.mqtt.discoveryPrefix.data(), Config::MQTT::DEFAULT_DISCOVERY_PREFIX,
+                 config.mqtt.discoveryPrefix.size() - 1);
+    std::strncpy(config.mqtt.baseTopic.data(), Config::MQTT::DEFAULT_BASE_TOPIC, config.mqtt.baseTopic.size() - 1);
+  }
+
+  const auto* apSsid = (config.ap.ssid[0] != '\0') ? config.ap.ssid.data() : Config::AP::DEFAULT_SSID;
+  const auto* apPass = (config.ap.pass[0] != '\0') ? config.ap.pass.data() : Config::AP::DEFAULT_PASS;
+
+  if (not wifiDriver_.startAp(apSsid, apPass))
+  {
+    provisioning_ = false;
+    return false;
+  }
+
+  const auto server = lwip_socket(AF_INET, SOCK_STREAM, 0);
+  if (server < 0)
+  {
+    printf("[WiFi] Socket create failed\n");
+    provisioning_ = false;
+    return false;
+  }
+
+  sockaddr_in addr{};
+  addr.sin_family      = AF_INET;
+  addr.sin_port        = htons(80);
+  addr.sin_addr.s_addr = PP_HTONL(INADDR_ANY);
+
+  lwip_bind(server, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr));
+  lwip_listen(server, 2);
+
+  const auto rebootRequested = runProvisioningLoop(server, config, timeoutMs, cancelFlag, sensorManager);
 
   lwip_close(server);
-  dhcp_server_deinit(&dhcpServer);
-  cyw43_arch_disable_ap_mode();
+  WifiDriver::stopAp();
   provisioning_ = false;
 
   return rebootRequested;

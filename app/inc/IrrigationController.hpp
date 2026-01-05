@@ -12,10 +12,10 @@ public:
   explicit IrrigationController(SensorManager* sensorManager);
   ~IrrigationController();
 
-  IrrigationController(const IrrigationController&)                        = delete;
-  auto operator=(const IrrigationController&) -> IrrigationController&     = delete;
-  IrrigationController(IrrigationController&&) noexcept                    = delete;
-  auto operator=(IrrigationController&&) noexcept -> IrrigationController& = delete;
+  IrrigationController(const IrrigationController&)                    = delete;
+  auto operator=(const IrrigationController&) -> IrrigationController& = delete;
+  IrrigationController(IrrigationController&&)                         = delete;
+  auto operator=(IrrigationController&&) -> IrrigationController&      = delete;
 
   auto init() -> bool;
   void update(const SensorData& sensorData);

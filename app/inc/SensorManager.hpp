@@ -19,10 +19,10 @@ public:
   SensorManager()  = default;
   ~SensorManager() = default;
 
-  SensorManager(const SensorManager&)                        = delete;
-  auto operator=(const SensorManager&) -> SensorManager&     = delete;
-  SensorManager(SensorManager&&) noexcept                    = delete;
-  auto operator=(SensorManager&&) noexcept -> SensorManager& = delete;
+  SensorManager(const SensorManager&)                    = delete;
+  auto operator=(const SensorManager&) -> SensorManager& = delete;
+  SensorManager(SensorManager&&)                         = delete;
+  auto operator=(SensorManager&&) -> SensorManager&      = delete;
 
   [[nodiscard]] auto init() -> bool;
 
@@ -33,13 +33,13 @@ public:
   [[nodiscard]] auto readSoilMoisture() const -> SoilMoistureData;
   [[nodiscard]] auto readWaterLevel() const -> WaterLevelData;
 
-  void calibrateSoilMoisture(uint16_t dryValue, uint16_t wetValue) noexcept;
+  void calibrateSoilMoisture(uint16_t dryValue, uint16_t wetValue);
 
-  [[nodiscard]] auto isInitialized() const noexcept -> bool
+  [[nodiscard]] auto isInitialized() const -> bool
   {
     return initialized_;
   }
-  [[nodiscard]] auto isBME280Available() const noexcept -> bool
+  [[nodiscard]] auto isBME280Available() const -> bool
   {
     return environmentalSensor_ and environmentalSensor_->isAvailable();
   }

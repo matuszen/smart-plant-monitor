@@ -1,6 +1,7 @@
 #include <FreeRTOS.h>
-#include <task.h>
 #include <pico/platform/panic.h>
+#include <task.h>
+
 #include <cstdio>
 
 extern "C"

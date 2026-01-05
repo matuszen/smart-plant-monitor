@@ -22,7 +22,7 @@ public:
 
   [[nodiscard]] auto init() -> bool;
   [[nodiscard]] auto read() -> std::optional<WaterLevelData>;
-  [[nodiscard]] auto isAvailable() const noexcept -> bool
+  [[nodiscard]] auto isAvailable() const -> bool
   {
     return initialized_;
   }

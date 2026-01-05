@@ -1,12 +1,9 @@
 #pragma once
 
 #include "IrrigationController.hpp"
+#include "MqttTransport.hpp"
 #include "SensorManager.hpp"
 #include "Types.hpp"
-
-#include <lwip/apps/mqtt.h>
-#include <lwip/arch.h>
-#include <lwip/ip_addr.h>
 
 #include <array>
 #include <cstdint>
@@ -29,24 +26,24 @@ public:
   void               publishActivity(std::string_view message);
 
   void               setPublishInterval(uint32_t intervalMs);
-  [[nodiscard]] auto getPublishInterval() const noexcept -> uint32_t
+  [[nodiscard]] auto getPublishInterval() const -> uint32_t
   {
     return config_.publishIntervalMs;
   }
 
-  [[nodiscard]] auto getSensorManager() const noexcept -> SensorManager*
+  [[nodiscard]] auto getSensorManager() const -> SensorManager*
   {
     return sensorManager_;
   }
 
-  [[nodiscard]] auto getIrrigationController() const noexcept -> IrrigationController*
+  [[nodiscard]] auto getIrrigationController() const -> IrrigationController*
   {
     return irrigationController_;
   }
 
-  [[nodiscard]] auto isConnected() const noexcept -> bool;
+  [[nodiscard]] auto isConnected() const -> bool;
 
-  void setWifiReady(bool ready) noexcept
+  void setWifiReady(bool ready)
   {
     wifiReady_ = ready;
   }
@@ -65,14 +62,6 @@ public:
   }
 
 private:
-  enum class ConnectionState : uint8_t
-  {
-    DISCONNECTED,
-    RESOLVING_DNS,
-    CONNECTING,
-    CONNECTED
-  };
-
   void ensureMqtt(uint32_t nowMs);
   void publishDiscovery();
   void publishAvailability(bool online);
@@ -92,46 +81,30 @@ private:
   void handleTriggerCommand(std::string_view payload);
   void handleIntervalCommand(std::string_view payload);
 
-  [[nodiscard]] auto resolveBrokerIp() -> bool;
-  void               handleDnsResult(const ip_addr_t* result);
+  MqttTransport transport_;
+  MqttConfig    config_;
 
-  static void mqttConnectionCb(mqtt_client_t* client, void* arg, mqtt_connection_status_t status);
-  static void mqttIncomingPublishCb(void* arg, const char* topic, uint32_t tot_len);
-  static void mqttIncomingDataCb(void* arg, const uint8_t* data, uint16_t len, uint8_t flags);
-  static void dnsFoundCb(const char* name, const ip_addr_t* ipaddr, void* arg);
+  SensorManager*        sensorManager_{nullptr};
+  IrrigationController* irrigationController_{nullptr};
 
-  SensorManager*        sensorManager_;
-  IrrigationController* irrigationController_;
-  MqttConfig            config_{};
+  bool wifiReady_{false};
+  bool updateRequest_{false};
+  bool needsDiscovery_{true};
+  bool needsInitialPublish_{true};
+  bool hasData_{false};
 
-  mqtt_client_t*  mqttClient_{nullptr};
-  ip_addr_t       brokerIp_{};
-  bool            brokerIpValid_{false};
-  bool            wifiReady_{false};
-  ConnectionState connectionState_{ConnectionState::DISCONNECTED};
-  bool            discoveryPublished_{false};
-  bool            needsDiscovery_{false};
-  bool            needsInitialPublish_{false};
-  bool            updateRequest_{false};
+  SensorData lastData_{};
+  uint32_t   lastPublish_{0};
+  uint32_t   lastReconnectAttempt_{0};
 
-  uint32_t lastMqttAttempt_{0};
-  uint32_t lastPublish_{0};
-  uint32_t mqttBackoffMultiplier_{1};
-
-  SensorData           lastData_{};
-  bool                 hasData_{false};
-  std::array<char, 64> modeCommandTopic_{};
-  std::array<char, 64> modeStateTopic_{};
-  std::array<char, 64> triggerCommandTopic_{};
-  std::array<char, 64> updateCommandTopic_{};
-  std::array<char, 64> intervalCommandTopic_{};
-  std::array<char, 64> intervalStateTopic_{};
-  std::array<char, 64> activityStateTopic_{};
-
-  std::array<char, 64> availabilityTopic_{};
-  std::array<char, 64> stateTopic_{};
-  std::array<char, 64> commandTopic_{};
-
-  std::array<char, 64>  lastIncomingTopic_{};
-  std::array<char, 128> incomingBuffer_{};
+  std::array<char, 128> availabilityTopic_{};
+  std::array<char, 128> stateTopic_{};
+  std::array<char, 128> commandTopic_{};
+  std::array<char, 128> modeCommandTopic_{};
+  std::array<char, 128> modeStateTopic_{};
+  std::array<char, 128> triggerCommandTopic_{};
+  std::array<char, 128> updateCommandTopic_{};
+  std::array<char, 128> intervalCommandTopic_{};
+  std::array<char, 128> intervalStateTopic_{};
+  std::array<char, 128> activityStateTopic_{};
 };

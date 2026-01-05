@@ -401,6 +401,67 @@ auto shouldPerformSensorRead(const uint32_t now, uint32_t lastSensorRead, uint32
   return (now - lastSensorRead >= sensorReadInterval);
 }
 
+void updateNetworkLedState(MQTTClient& ctx)
+{
+  if (ctx.isConnected())
+  {
+    setNetworkLedState(NetworkLedState::MQTT_CONNECTED);
+  }
+  else
+  {
+    const auto currentLed = readLedState();
+    if (currentLed.network == NetworkLedState::MQTT_CONNECTED)
+    {
+      setNetworkLedState(NetworkLedState::CONNECTED);
+    }
+  }
+}
+
+void handleWateringStateChange(bool& wasWatering, const bool isWatering, const uint32_t now,
+                               uint32_t& scheduledReadTime, bool& pendingPostWateringRead, MQTTClient& ctx)
+{
+  if (wasWatering and not isWatering)
+  {
+    ctx.publishActivity("Irrigation finished");
+    scheduledReadTime       = now + 60'000;
+    pendingPostWateringRead = true;
+  }
+  else if (not wasWatering and isWatering)
+  {
+    ctx.publishActivity("Irrigation started");
+  }
+  wasWatering = isWatering;
+}
+
+void determineSensorReadNeeds(const uint32_t now, uint32_t lastSensorRead, uint32_t sensorReadInterval,
+                              bool waterLevelError, bool& shouldRead, bool& onlyWaterLevel, bool& forceUpdate,
+                              uint32_t scheduledReadTime, bool& pendingPostWateringRead,
+                              IrrigationController& irrigationController, MQTTClient& ctx)
+{
+  if (ctx.isUpdateRequested())
+  {
+    shouldRead  = true;
+    forceUpdate = true;
+    ctx.clearUpdateRequest();
+  }
+  else
+  {
+    const bool isManualMode = (irrigationController.getMode() == IrrigationMode::MANUAL);
+    if (not isManualMode)
+    {
+      shouldRead     = shouldPerformSensorRead(now, lastSensorRead, sensorReadInterval, waterLevelError);
+      onlyWaterLevel = waterLevelError and (now - lastSensorRead >= 15'000);
+    }
+
+    if (pendingPostWateringRead and now >= scheduledReadTime)
+    {
+      shouldRead              = true;
+      onlyWaterLevel          = false;
+      pendingPostWateringRead = false;
+    }
+  }
+}
+
 void sensorTask(void* const params)
 {
   auto& ctx                  = *static_cast<MQTTClient*>(params);
@@ -408,7 +469,7 @@ void sensorTask(void* const params)
   auto& irrigationController = *ctx.getIrrigationController();
 
   SystemConfig config;
-  if (!FlashManager::loadConfig(config))
+  if (not FlashManager::loadConfig(config))
   {
     config = {};
   }
@@ -420,9 +481,8 @@ void sensorTask(void* const params)
   }
   ctx.setPublishInterval(sensorReadInterval);
 
-  auto               lastSensorRead       = sensorReadInterval;
-  constexpr uint32_t sensorTaskTickMs     = 100;
-  constexpr uint32_t errorRetryIntervalMs = 15'000;
+  auto               lastSensorRead   = sensorReadInterval;
+  constexpr uint32_t sensorTaskTickMs = 100;
 
   bool     wasWatering             = false;
   uint32_t scheduledReadTime       = 0;
@@ -435,60 +495,19 @@ void sensorTask(void* const params)
     ctx.loop(now);
     sensorReadInterval = ctx.getPublishInterval();
 
-    if (ctx.isConnected())
-    {
-      setNetworkLedState(NetworkLedState::MQTT_CONNECTED);
-    }
-    else
-    {
-      const auto currentLed = readLedState();
-      if (currentLed.network == NetworkLedState::MQTT_CONNECTED)
-      {
-        setNetworkLedState(NetworkLedState::CONNECTED);
-      }
-    }
+    updateNetworkLedState(ctx);
 
     const bool isWatering = irrigationController.isWatering();
     setActivityLedState(isWatering);
 
-    if (wasWatering and not isWatering)
-    {
-      ctx.publishActivity("Irrigation finished");
-      scheduledReadTime       = now + 60'000;
-      pendingPostWateringRead = true;
-    }
-    else if (not wasWatering and isWatering)
-    {
-      ctx.publishActivity("Irrigation started");
-    }
-    wasWatering = isWatering;
+    handleWateringStateChange(wasWatering, isWatering, now, scheduledReadTime, pendingPostWateringRead, ctx);
 
     bool shouldRead     = false;
     bool onlyWaterLevel = false;
     bool forceUpdate    = false;
 
-    if (ctx.isUpdateRequested())
-    {
-      shouldRead  = true;
-      forceUpdate = true;
-      ctx.clearUpdateRequest();
-    }
-    else
-    {
-      const bool isManualMode = (irrigationController.getMode() == IrrigationMode::MANUAL);
-      if (not isManualMode)
-      {
-        shouldRead     = shouldPerformSensorRead(now, lastSensorRead, sensorReadInterval, waterLevelError);
-        onlyWaterLevel = waterLevelError and (now - lastSensorRead >= errorRetryIntervalMs);
-      }
-
-      if (pendingPostWateringRead and now >= scheduledReadTime)
-      {
-        shouldRead              = true;
-        onlyWaterLevel          = false;
-        pendingPostWateringRead = false;
-      }
-    }
+    determineSensorReadNeeds(now, lastSensorRead, sensorReadInterval, waterLevelError, shouldRead, onlyWaterLevel,
+                             forceUpdate, scheduledReadTime, pendingPostWateringRead, irrigationController, ctx);
 
     if (shouldRead)
     {
@@ -564,7 +583,7 @@ void processWifiCommand(const WifiCommand cmd, ProvisionContext* const ctx, bool
           ctx->mqttClient->setWifiReady(connected);
           if (config.mqtt.enabled)
           {
-            [[maybe_unused]] const auto _ = ctx->mqttClient->init(config.mqtt);
+            (void)ctx->mqttClient->init(config.mqtt);
           }
         }
         else
@@ -596,7 +615,7 @@ void handleInitialConnection(ProvisionContext* const ctx, const SystemConfig& co
     ctx->mqttClient->setWifiReady(true);
     if (config.mqtt.enabled)
     {
-      [[maybe_unused]] const auto _ = ctx->mqttClient->init(config.mqtt);
+      (void)ctx->mqttClient->init(config.mqtt);
     }
     setNetworkLedState(NetworkLedState::CONNECTED);
     setWifiError(false);
@@ -632,7 +651,7 @@ void handleConnectionRetry(ProvisionContext* const ctx, const SystemConfig& conf
     ctx->mqttClient->setWifiReady(true);
     if (config.mqtt.enabled)
     {
-      [[maybe_unused]] const auto _ = ctx->mqttClient->init(config.mqtt);
+      (void)ctx->mqttClient->init(config.mqtt);
     }
     setNetworkLedState(NetworkLedState::CONNECTED);
     setWifiError(false);

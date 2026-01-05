@@ -55,7 +55,7 @@ auto SoilMoistureSensor::read() -> std::optional<SoilMoistureData>
   return data;
 }
 
-void SoilMoistureSensor::calibrate(const uint16_t dryValue, const uint16_t wetValue) noexcept
+void SoilMoistureSensor::calibrate(const uint16_t dryValue, const uint16_t wetValue)
 {
   soilDryValue_ = dryValue;
   soilWetValue_ = wetValue;
@@ -68,8 +68,7 @@ auto SoilMoistureSensor::readADC(const uint8_t channel) -> uint16_t
   return adc_read();
 }
 
-auto SoilMoistureSensor::mapToPercentage(const uint16_t value, const uint16_t minVal,
-                                         const uint16_t maxVal) noexcept -> float
+auto SoilMoistureSensor::mapToPercentage(const uint16_t value, const uint16_t minVal, const uint16_t maxVal) -> float
 {
   if (maxVal <= minVal)
   {

@@ -226,7 +226,7 @@ auto SensorManager::readWaterLevel() const -> WaterLevelData
   return measurement.value();
 }
 
-void SensorManager::calibrateSoilMoisture(const uint16_t dryValue, const uint16_t wetValue) noexcept
+void SensorManager::calibrateSoilMoisture(const uint16_t dryValue, const uint16_t wetValue)
 {
   if (soilSensor_)
   {

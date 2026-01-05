@@ -2,10 +2,11 @@
 
 #include "SensorManager.hpp"
 #include "Types.hpp"
+#include "WifiDriver.hpp"
 
 #include <cstdint>
 
-class ConnectionManager
+class ConnectionManager final
 {
 public:
   ConnectionManager()  = default;
@@ -22,12 +23,12 @@ public:
   [[nodiscard]] auto startApAndServe(uint32_t timeoutMs, SensorManager& sensorManager,
                                      const volatile bool* cancelFlag = nullptr) -> bool;
 
-  [[nodiscard]] auto isConnected() const noexcept -> bool
+  [[nodiscard]] auto isConnected() const -> bool
   {
     return connected_;
   }
 
-  [[nodiscard]] auto isProvisioning() const noexcept -> bool
+  [[nodiscard]] auto isProvisioning() const -> bool
   {
     return provisioning_;
   }
@@ -35,7 +36,8 @@ public:
 private:
   [[nodiscard]] static auto flashStorageOffset() -> uint32_t;
 
-  bool initialized_{false};
-  bool connected_{false};
-  bool provisioning_{false};
+  WifiDriver wifiDriver_;
+  bool       initialized_{false};
+  bool       connected_{false};
+  bool       provisioning_{false};
 };

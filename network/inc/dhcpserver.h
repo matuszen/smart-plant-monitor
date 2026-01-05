@@ -1,6 +1,4 @@
 /*
- * This file is part of the MicroPython project, http://micropython.org/
- *
  * The MIT License (MIT)
  *
  * Copyright (c) 2018-2019 Damien P. George
@@ -23,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+
 #ifndef MICROPY_INCLUDED_LIB_NETUTILS_DHCPSERVER_H
 #define MICROPY_INCLUDED_LIB_NETUTILS_DHCPSERVER_H
 

@@ -24,12 +24,12 @@ public:
 
   [[nodiscard]] auto init() -> bool;
   [[nodiscard]] auto read() -> std::optional<SoilMoistureData>;
-  [[nodiscard]] auto isAvailable() const noexcept -> bool
+  [[nodiscard]] auto isAvailable() const -> bool
   {
     return initialized_;
   }
 
-  void calibrate(uint16_t dryValue, uint16_t wetValue) noexcept;
+  void calibrate(uint16_t dryValue, uint16_t wetValue);
 
 private:
   uint8_t adcPin_{};
@@ -41,5 +41,5 @@ private:
   uint16_t soilWetValue_{Config::SOIL_WET_VALUE};
 
   [[nodiscard]] static auto readADC(uint8_t channel) -> uint16_t;
-  [[nodiscard]] static auto mapToPercentage(uint16_t value, uint16_t minVal, uint16_t maxVal) noexcept -> float;
+  [[nodiscard]] static auto mapToPercentage(uint16_t value, uint16_t minVal, uint16_t maxVal) -> float;
 };

@@ -71,7 +71,7 @@ struct EnvironmentData
   float pressure{0.0F};
   bool  valid{false};
 
-  [[nodiscard]] constexpr auto isValid() const noexcept -> bool
+  [[nodiscard]] constexpr auto isValid() const -> bool
   {
     return valid;
   }
@@ -83,15 +83,15 @@ struct SoilMoistureData
   uint16_t rawValue{0};
   bool     valid{false};
 
-  [[nodiscard]] constexpr auto isValid() const noexcept -> bool
+  [[nodiscard]] constexpr auto isValid() const -> bool
   {
     return valid;
   }
-  [[nodiscard]] constexpr auto isDry() const noexcept -> bool
+  [[nodiscard]] constexpr auto isDry() const -> bool
   {
     return valid and percentage < 30.0F;
   }
-  [[nodiscard]] constexpr auto isWet() const noexcept -> bool
+  [[nodiscard]] constexpr auto isWet() const -> bool
   {
     return valid and percentage > 70.0F;
   }
@@ -103,7 +103,7 @@ struct LightLevelData
   float    lux{0.0F};
   bool     valid{false};
 
-  [[nodiscard]] constexpr auto isValid() const noexcept -> bool
+  [[nodiscard]] constexpr auto isValid() const -> bool
   {
     return valid;
   }
@@ -115,19 +115,19 @@ struct WaterLevelData
   uint16_t activeSections{0};
   bool     valid{false};
 
-  [[nodiscard]] constexpr auto isValid() const noexcept -> bool
+  [[nodiscard]] constexpr auto isValid() const -> bool
   {
     return valid;
   }
-  [[nodiscard]] constexpr auto isEmpty() const noexcept -> bool
+  [[nodiscard]] constexpr auto isEmpty() const -> bool
   {
     return valid and percentage < 10.0F;
   }
-  [[nodiscard]] constexpr auto isLow() const noexcept -> bool
+  [[nodiscard]] constexpr auto isLow() const -> bool
   {
     return valid and percentage < 25.0F;
   }
-  [[nodiscard]] constexpr auto isFull() const noexcept -> bool
+  [[nodiscard]] constexpr auto isFull() const -> bool
   {
     return valid and percentage > 80.0F;
   }
@@ -141,7 +141,7 @@ struct SensorData
   WaterLevelData   water;
   uint32_t         timestamp{0};
 
-  [[nodiscard]] constexpr auto allValid() const noexcept -> bool
+  [[nodiscard]] constexpr auto allValid() const -> bool
   {
     return environment.isValid() and soil.isValid() and light.isValid() and water.isValid();
   }

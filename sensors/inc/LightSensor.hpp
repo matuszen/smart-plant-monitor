@@ -14,14 +14,14 @@ public:
   explicit LightSensor(i2c_inst_t* i2c, uint8_t address = Config::LIGHT_SENSOR_I2C_ADDRESS);
   ~LightSensor() = default;
 
-  LightSensor(const LightSensor&)                        = delete;
-  auto operator=(const LightSensor&) -> LightSensor&     = delete;
-  LightSensor(LightSensor&&) noexcept                    = delete;
-  auto operator=(LightSensor&&) noexcept -> LightSensor& = delete;
+  LightSensor(const LightSensor&)                    = delete;
+  auto operator=(const LightSensor&) -> LightSensor& = delete;
+  LightSensor(LightSensor&&)                         = delete;
+  auto operator=(LightSensor&&) -> LightSensor&      = delete;
 
   [[nodiscard]] auto init() -> bool;
   [[nodiscard]] auto read() -> std::optional<LightLevelData>;
-  [[nodiscard]] auto isAvailable() const noexcept -> bool
+  [[nodiscard]] auto isAvailable() const -> bool
   {
     return initialized_;
   }
