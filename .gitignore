@@ -33,8 +33,3 @@
 
 # Build directory
 build/
-
-# clangd/LSP files (generated locally)
-.clangd
-.clangd/
-.cache/

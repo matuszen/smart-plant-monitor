@@ -39,8 +39,9 @@
     "C_Cpp.autocomplete": "disabled",
     "C_Cpp.errorSquiggles": "disabled",
     "clangd.arguments": [
-        "--query-driver=/usr/include/c++/13/*",
+        "--query-driver=${env:HOME}/.pico-sdk/toolchain/*/bin/arm-none-eabi*",
         "--background-index",
-        "--clang-tidy"
+        "--clang-tidy",
+        "--compile-commands-dir=${workspaceFolder}/build"
     ]
 }

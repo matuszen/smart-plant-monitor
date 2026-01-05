@@ -30,41 +30,14 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 pico_sdk_init()
 
-add_library(freertos_config INTERFACE)
-target_include_directories(freertos_config SYSTEM INTERFACE
-    ${CMAKE_CURRENT_SOURCE_DIR}/inc
-    ${CMAKE_CURRENT_SOURCE_DIR}/src
-    ${CMAKE_CURRENT_SOURCE_DIR}/libs/inc
-    ${CMAKE_CURRENT_SOURCE_DIR}/libs/src
-)
-target_compile_definitions(freertos_config INTERFACE projCOVERAGE_TEST=0)
 include(${FREERTOS_KERNEL_PATH}/portable/ThirdParty/GCC/RP2350_ARM_NTZ/FreeRTOS_Kernel_import.cmake)
 
-file(GLOB_RECURSE SOURCES
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/*.c"
-    "${CMAKE_CURRENT_SOURCE_DIR}/libs/src/*.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/libs/src/*.c"
-)
+add_subdirectory(config)
+add_subdirectory(utils)
+add_subdirectory(sensors)
+add_subdirectory(web)
 
-add_executable(smart_plant_monitor ${SOURCES})
+add_subdirectory(app)
+add_subdirectory(network)
 
-target_link_libraries(smart_plant_monitor
-    pico_stdlib
-    pico_multicore
-    pico_cyw43_arch_lwip_sys_freertos
-    pico_lwip_mqtt
-    pico_lwip_mdns
-    hardware_adc
-    hardware_i2c
-    hardware_gpio
-    hardware_pwm
-    freertos_config
-    FreeRTOS-Kernel
-    FreeRTOS-Kernel-Heap4
-)
-
-pico_enable_stdio_usb(smart_plant_monitor 1)
-pico_enable_stdio_uart(smart_plant_monitor 0)
-
-pico_add_extra_outputs(smart_plant_monitor)
+add_subdirectory(tests)

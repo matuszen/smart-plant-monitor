@@ -1,0 +1,50 @@
+CompileFlags:
+  CompilationDatabase: build
+
+Index:
+  Background: Build
+
+Diagnostics:
+  UnusedIncludes: Strict
+  MissingIncludes: Strict
+  ClangTidy:
+    Add:
+      - modernize-*
+      - readability-*
+      - performance-*
+      - bugprone-*
+      - cppcoreguidelines-*
+      - clang-analyzer-*
+      - cert-*
+      - concurrency-*
+      - misc-*
+      - portability-*
+    Remove:
+      - bugprone-easily-swappable-parameters
+      - bugprone-narrowing-conversions
+      - cppcoreguidelines-avoid-non-const-global-variables
+      - cppcoreguidelines-narrowing-conversions
+      - cppcoreguidelines-pro-type-reinterpret-cast
+      - cppcoreguidelines-avoid-magic-numbers
+      - cppcoreguidelines-pro-type-vararg
+      - readability-identifier-length
+      - readability-magic-numbers
+      - readability-implicit-bool-conversion
+      - misc-non-private-member-variables-in-classes
+    CheckOptions:
+      readability-identifier-naming.NamespaceCase: CamelCase
+      readability-identifier-naming.ClassCase: CamelCase
+      readability-identifier-naming.StructCase: CamelCase
+      readability-identifier-naming.EnumCase: CamelCase
+      readability-identifier-naming.FunctionCase: camelBack
+      readability-identifier-naming.VariableCase: camelBack
+      readability-identifier-naming.PrivateMemberSuffix: _
+      readability-identifier-naming.EnumConstantCase: UPPER_CASE
+      readability-identifier-naming.GlobalConstantCase: UPPER_CASE
+      readability-function-cognitive-complexity.Threshold: 25
+
+InlayHints:
+  Enabled: No
+
+Hover:
+  ShowAKA: Yes

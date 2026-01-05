@@ -1,0 +1,4 @@
+*.c     text diff=cpp eol=lf encoding=UTF-8
+*.cpp   text diff=cpp eol=lf encoding=UTF-8
+*.hpp   text diff=cpp eol=lf encoding=UTF-8
+*.h     text diff=cpp eol=lf encoding=UTF-8

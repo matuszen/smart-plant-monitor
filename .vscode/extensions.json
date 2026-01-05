@@ -1,9 +1,10 @@
 {
     "recommendations": [
-        "ms-vscode.vscode-serial-monitor",
         "ms-vscode.cpptools",
         "marus25.cortex-debug",
         "raspberry-pi.raspberry-pi-pico",
-        "ms-vscode.cpptools-extension-pack"
+        "llvm-vs-code-extensions.vscode-clangd",
+        "xaver.clang-format",
+        "EditorConfig.EditorConfig",
     ]
 }

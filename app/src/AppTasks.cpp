@@ -24,28 +24,6 @@
 namespace
 {
 
-extern "C"
-{
-  void vApplicationMallocFailedHook(void)
-  {
-    panic("FreeRTOS: Malloc Failed! No memory available.");
-  }
-
-  void vApplicationStackOverflowHook(TaskHandle_t xTask, char* pcTaskName)
-  {
-    (void)xTask;
-    panic("FreeRTOS: Stack Overflow in task: %s", pcTaskName);
-  }
-
-  void vApplicationIdleHook(void)
-  {
-  }
-
-  void vApplicationTickHook(void)
-  {
-  }
-}
-
 LedSharedState    ledShared{};
 QueueHandle_t     wifiCommandQueue = nullptr;
 SemaphoreHandle_t ledStateMutex    = nullptr;
