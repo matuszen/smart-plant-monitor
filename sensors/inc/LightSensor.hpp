@@ -19,22 +19,22 @@ public:
   LightSensor(LightSensor&&)                         = delete;
   auto operator=(LightSensor&&) -> LightSensor&      = delete;
 
-  [[nodiscard]] auto init() -> bool;
-  [[nodiscard]] auto read() -> std::optional<LightLevelData>;
-  [[nodiscard]] auto isAvailable() const -> bool
+  auto init() -> bool;
+  auto read() -> std::optional<LightLevelData>;
+  auto isAvailable() const -> bool
   {
     return initialized_;
   }
 
 private:
-  static constexpr uint8_t POWER_ON_CMD{0x01};
-  static constexpr uint8_t RESET_CMD{0x07};
-  static constexpr uint8_t CONT_HIGH_RES_MODE_CMD{0x10};
+  static constexpr uint8_t POWER_ON_CMD           = 0x01;
+  static constexpr uint8_t RESET_CMD              = 0x07;
+  static constexpr uint8_t CONT_HIGH_RES_MODE_CMD = 0x10;
 
-  i2c_inst_t* i2c_{};
-  uint8_t     address_{};
-  bool        initialized_{false};
-  bool        readFailedLogged_{false};
+  i2c_inst_t* i2c_              = nullptr;
+  uint8_t     address_          = 0;
+  bool        initialized_      = false;
+  bool        readFailedLogged_ = false;
 
-  [[nodiscard]] auto writeCommand(uint8_t command) -> bool;
+  auto writeCommand(uint8_t command) -> bool;
 };

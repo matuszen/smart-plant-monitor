@@ -21,30 +21,29 @@ public:
   MqttTransport(MqttTransport&&)                         = delete;
   auto operator=(MqttTransport&&) -> MqttTransport&      = delete;
 
-  [[nodiscard]] auto init(const char* clientId, const char* host, uint16_t port, const char* user,
-                          const char* pass) -> bool;
-  void               connect(ConnectCallback cb);
-  void               disconnect();
+  auto init(const char* clientId, const char* host, uint16_t port, const char* user, const char* pass) -> bool;
+  void connect(ConnectCallback cb);
+  void disconnect();
 
-  [[nodiscard]] auto publish(const char* topic, const char* payload, bool retain = false) -> bool;
-  [[nodiscard]] auto subscribe(const char* topic) -> bool;
+  auto publish(const char* topic, const char* payload, bool retain = false) -> bool;
+  auto subscribe(const char* topic) -> bool;
 
-  void               setOnMessage(MessageCallback cb);
-  [[nodiscard]] auto isConnected() const -> bool;
+  void setOnMessage(MessageCallback cb);
+  auto isConnected() const -> bool;
 
 private:
   static void mqttConnectionCb(mqtt_client_t* client, void* arg, mqtt_connection_status_t status);
   static void mqttIncomingPublishCb(void* arg, const char* topic, uint32_t tot_len);
   static void mqttIncomingDataCb(void* arg, const uint8_t* data, uint16_t len, uint8_t flags);
 
-  mqtt_client_t* client_{nullptr};
+  mqtt_client_t* client_ = nullptr;
   std::string    host_;
-  uint16_t       port_{0};
+  uint16_t       port_ = 0;
   std::string    clientId_;
   std::string    user_;
   std::string    pass_;
 
-  bool            connected_{false};
+  bool            connected_ = false;
   ConnectCallback connectCb_;
   MessageCallback messageCb_;
 

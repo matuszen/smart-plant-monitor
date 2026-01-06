@@ -7,13 +7,16 @@
 #include <FreeRTOS.h>
 #include <hardware/gpio.h>
 #include <pico/stdlib.h>
+#include <projdefs.h>
 #include <task.h>
+
+#include <cstdint>
 
 void ledTask(void* const params)
 {
-  auto* ctx       = static_cast<AppContext*>(params);
-  bool  networkOn = false;
+  auto* ctx = static_cast<AppContext*>(params);
 
+  bool     networkOn         = false;
   uint32_t lastNetworkToggle = 0;
 
   constexpr uint32_t connectBlinkMs   = 400;
@@ -59,7 +62,6 @@ void ledTask(void* const params)
         break;
     }
     gpio_put(Config::LED_NETWORK_PIN, networkOn);
-
     gpio_put(Config::LED_ERROR_PIN, led.isError());
 
     vTaskDelay(pdMS_TO_TICKS(50));

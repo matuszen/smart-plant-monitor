@@ -32,7 +32,7 @@ EnvironmentalSensor::EnvironmentalSensor(i2c_inst_t* i2c, const uint8_t address)
 
 auto EnvironmentalSensor::init() -> bool
 {
-  if (initialized_)
+  if (initialized_) [[unlikely]]
   {
     return true;
   }
@@ -43,7 +43,7 @@ auto EnvironmentalSensor::init() -> bool
     return false;
   }
 
-  uint8_t id{};
+  uint8_t id = 0;
   if (not readRegs(REG_ID, &id, 1) or id != CHIP_ID) [[unlikely]]
   {
     printf("[BME280] Sensor not detected (ID=0x%02X)\n", id);
@@ -136,7 +136,7 @@ auto EnvironmentalSensor::readCalibrationData() -> bool
   calib_.dig_P8 = static_cast<int16_t>((buf[21] << 8) | buf[20]);
   calib_.dig_P9 = static_cast<int16_t>((buf[23] << 8) | buf[22]);
 
-  uint8_t h1{};
+  uint8_t h1 = 0;
   if (not readRegs(0xA1, &h1, 1)) [[unlikely]]
   {
     return false;

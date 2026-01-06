@@ -26,7 +26,7 @@ auto WifiDriver::init() -> bool
     return true;
   }
 
-  if (cyw43_arch_init() != 0)
+  if (cyw43_arch_init() != 0) [[unlikely]]
   {
     printf("[WifiDriver] cyw43_arch_init failed\n");
     return false;
@@ -38,7 +38,7 @@ auto WifiDriver::init() -> bool
 
 auto WifiDriver::connectSta(const char* const ssid, const char* const password, const uint32_t timeoutMs) -> bool
 {
-  if (not init())
+  if (not init()) [[unlikely]]
   {
     return false;
   }
@@ -47,7 +47,7 @@ auto WifiDriver::connectSta(const char* const ssid, const char* const password, 
 
   printf("[WifiDriver] Connecting to SSID '%s'...\n", ssid);
   const auto response = cyw43_arch_wifi_connect_timeout_ms(ssid, password, CYW43_AUTH_WPA2_AES_PSK, timeoutMs);
-  if (response != 0)
+  if (response != 0) [[unlikely]]
   {
     printf("[WifiDriver] Connection failed (%d)\n", response);
     return false;
@@ -65,7 +65,7 @@ void WifiDriver::disconnectSta()
 
 auto WifiDriver::startAp(const char* const ssid, const char* const password) -> bool
 {
-  if (not init())
+  if (not init()) [[unlikely]]
   {
     return false;
   }
@@ -96,7 +96,7 @@ void WifiDriver::stopAp()
 
 void WifiDriver::setHostname(const char* const hostname) const
 {
-  if (not initialized_)
+  if (not initialized_) [[unlikely]]
   {
     return;
   }
@@ -107,9 +107,9 @@ void WifiDriver::setHostname(const char* const hostname) const
 
 void WifiDriver::logIpInfo(const Interface interface)
 {
-  const auto* nif =
+  const auto* const nif =
     (interface == Interface::STA) ? &cyw43_state.netif[CYW43_ITF_STA] : &cyw43_state.netif[CYW43_ITF_AP];
-  if (nif == nullptr)
+  if (nif == nullptr) [[unlikely]]
   {
     return;
   }
@@ -118,23 +118,23 @@ void WifiDriver::logIpInfo(const Interface interface)
   std::array<char, 16> gwBuf{};
   std::array<char, 16> maskBuf{};
 
-  const auto* ipStr = ip4addr_ntoa(netif_ip4_addr(nif));
+  const auto* const ipStr = ip4addr_ntoa(netif_ip4_addr(nif));
   if (ipStr != nullptr)
   {
     std::strncpy(ipBuf.data(), ipStr, ipBuf.size() - 1);
   }
-  const auto* gwStr = ip4addr_ntoa(netif_ip4_gw(nif));
+  const auto* const gwStr = ip4addr_ntoa(netif_ip4_gw(nif));
   if (gwStr != nullptr)
   {
     std::strncpy(gwBuf.data(), gwStr, gwBuf.size() - 1);
   }
-  const auto* maskStr = ip4addr_ntoa(netif_ip4_netmask(nif));
+  const auto* const maskStr = ip4addr_ntoa(netif_ip4_netmask(nif));
   if (maskStr != nullptr)
   {
     std::strncpy(maskBuf.data(), maskStr, maskBuf.size() - 1);
   }
 
-  const char* label = (interface == Interface::STA) ? "STA" : "AP";
+  const char* const label = (interface == Interface::STA) ? "STA" : "AP";
   printf("[WifiDriver] %s IP=%s Gateway=%s Mask=%s\n", label, (ipBuf[0] != '\0') ? ipBuf.data() : "n/a",
          (gwBuf[0] != '\0') ? gwBuf.data() : "n/a", (maskBuf[0] != '\0') ? maskBuf.data() : "n/a");
 }

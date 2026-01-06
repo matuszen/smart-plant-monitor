@@ -24,18 +24,18 @@ public:
   SensorController(SensorController&&)                         = delete;
   auto operator=(SensorController&&) -> SensorController&      = delete;
 
-  [[nodiscard]] auto init() -> bool;
+  auto init() -> bool;
 
-  [[nodiscard]] auto readAllSensors() -> SensorData;
+  auto readAllSensors() -> SensorData;
 
-  [[nodiscard]] auto readBME280() -> EnvironmentData;
-  [[nodiscard]] auto readLightLevel() const -> LightLevelData;
-  [[nodiscard]] auto readSoilMoisture() const -> SoilMoistureData;
-  [[nodiscard]] auto readWaterLevel() const -> WaterLevelData;
+  auto readBME280() -> EnvironmentData;
+  auto readLightLevel() const -> LightLevelData;
+  auto readSoilMoisture() const -> SoilMoistureData;
+  auto readWaterLevel() const -> WaterLevelData;
 
   void calibrateSoilMoisture(uint16_t dryValue, uint16_t wetValue);
 
-  [[nodiscard]] auto isInitialized() const -> bool;
+  auto isInitialized() const -> bool;
 
 private:
   bool                      initialized_ = false;

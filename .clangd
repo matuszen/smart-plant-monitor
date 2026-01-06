@@ -31,6 +31,7 @@ Diagnostics:
       - readability-magic-numbers
       - readability-implicit-bool-conversion
       - misc-non-private-member-variables-in-classes
+      - modernize-use-nodiscard
     CheckOptions:
       readability-identifier-naming.NamespaceCase: CamelCase
       readability-identifier-naming.ClassCase: CamelCase

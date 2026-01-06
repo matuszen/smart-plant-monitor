@@ -13,7 +13,7 @@
 class MQTTClient final
 {
 public:
-  MQTTClient(SensorController* sensorController, IrrigationController* irrigationController);
+  MQTTClient(SensorController& sensorController, IrrigationController& irrigationController);
   ~MQTTClient();
 
   MQTTClient(const MQTTClient&)                    = delete;
@@ -21,46 +21,25 @@ public:
   MQTTClient(MQTTClient&&)                         = delete;
   auto operator=(MQTTClient&&) -> MQTTClient&      = delete;
 
-  [[nodiscard]] auto init(const MqttConfig& config) -> bool;
-  void               loop(uint32_t nowMs);
-  void               publishSensorState(uint32_t nowMs, const SensorData& data, bool watering, bool force = false);
-  void               publishActivity(std::string_view message);
+  auto init(const MqttConfig& config) -> bool;
+  void loop(uint32_t nowMs);
+  void publishSensorState(uint32_t nowMs, const SensorData& data, bool watering, bool force = false);
+  void publishActivity(std::string_view message);
 
-  void               setPublishInterval(uint32_t intervalMs);
-  [[nodiscard]] auto getPublishInterval() const -> uint32_t
-  {
-    return config_.publishIntervalMs;
-  }
+  void setPublishInterval(uint32_t intervalMs);
+  auto getPublishInterval() const -> uint32_t;
 
-  [[nodiscard]] auto getIrrigationController() const -> IrrigationController*
-  {
-    return irrigationController_;
-  }
+  auto getIrrigationController() const -> IrrigationController*;
 
-  [[nodiscard]] auto getSensorController() const -> SensorController*
-  {
-    return sensorController_;
-  }
+  auto getSensorController() const -> SensorController*;
 
-  [[nodiscard]] auto isConnected() const -> bool;
+  auto isConnected() const -> bool;
 
-  void setWifiReady(bool ready)
-  {
-    wifiReady_ = ready;
-  }
+  void setWifiReady(bool ready);
 
-  void requestUpdate()
-  {
-    updateRequest_ = true;
-  }
-  [[nodiscard]] auto isUpdateRequested() const -> bool
-  {
-    return updateRequest_;
-  }
-  void clearUpdateRequest()
-  {
-    updateRequest_ = false;
-  }
+  void requestUpdate();
+  auto isUpdateRequested() const -> bool;
+  void clearUpdateRequest();
 
 private:
   void ensureMqtt(uint32_t nowMs);
@@ -85,27 +64,28 @@ private:
   MqttTransport transport_;
   MqttConfig    config_;
 
-  SensorController*     sensorController_{nullptr};
-  IrrigationController* irrigationController_{nullptr};
+  SensorController&     sensorController_;
+  IrrigationController& irrigationController_;
 
-  bool wifiReady_{false};
-  bool updateRequest_{false};
-  bool needsDiscovery_{true};
-  bool needsInitialPublish_{true};
-  bool hasData_{false};
+  SensorData lastData_ = {};
 
-  SensorData lastData_{};
-  uint32_t   lastPublish_{0};
-  uint32_t   lastReconnectAttempt_{0};
+  bool wifiReady_           = false;
+  bool updateRequest_       = false;
+  bool needsDiscovery_      = true;
+  bool needsInitialPublish_ = true;
+  bool hasData_             = false;
 
-  std::array<char, 128> availabilityTopic_{};
-  std::array<char, 128> stateTopic_{};
-  std::array<char, 128> commandTopic_{};
-  std::array<char, 128> modeCommandTopic_{};
-  std::array<char, 128> modeStateTopic_{};
-  std::array<char, 128> triggerCommandTopic_{};
-  std::array<char, 128> updateCommandTopic_{};
-  std::array<char, 128> intervalCommandTopic_{};
-  std::array<char, 128> intervalStateTopic_{};
-  std::array<char, 128> activityStateTopic_{};
+  uint32_t lastPublish_          = 0;
+  uint32_t lastReconnectAttempt_ = 0;
+
+  std::array<char, 128> availabilityTopic_    = {};
+  std::array<char, 128> stateTopic_           = {};
+  std::array<char, 128> commandTopic_         = {};
+  std::array<char, 128> modeCommandTopic_     = {};
+  std::array<char, 128> modeStateTopic_       = {};
+  std::array<char, 128> triggerCommandTopic_  = {};
+  std::array<char, 128> updateCommandTopic_   = {};
+  std::array<char, 128> intervalCommandTopic_ = {};
+  std::array<char, 128> intervalStateTopic_   = {};
+  std::array<char, 128> activityStateTopic_   = {};
 };

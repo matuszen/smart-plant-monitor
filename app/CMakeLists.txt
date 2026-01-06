@@ -3,6 +3,7 @@ target_sources(app_core PRIVATE
     src/controllers/IrrigationController.cpp
     src/controllers/SensorController.cpp
     src/controllers/ConnectionController.cpp
+    src/AppContext.cpp
     src/Hooks.cpp
 )
 target_include_directories(app_core PUBLIC
@@ -21,13 +22,13 @@ target_link_libraries(app_core PUBLIC
 )
 
 add_executable(smart_plant_monitor
-    src/tasks/TaskEntry.cpp
-    src/main.cpp
     src/tasks/ButtonTask.cpp
+    src/tasks/TaskEntry.cpp
     src/tasks/LedTask.cpp
     src/tasks/NetworkTask.cpp
     src/tasks/SensorTask.cpp
     src/tasks/WifiTask.cpp
+    src/main.cpp
 )
 target_include_directories(smart_plant_monitor PRIVATE
     inc

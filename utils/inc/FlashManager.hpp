@@ -30,16 +30,16 @@ public:
 
   static auto getInstance() -> FlashManager&;
 
-  [[nodiscard]] static auto read(uint32_t offset, std::span<uint8_t> buffer) -> bool;
-  [[nodiscard]] static auto write(uint32_t offset, std::span<const uint8_t> data) -> bool;
-  [[nodiscard]] static auto erase(uint32_t offset, size_t size) -> bool;
+  static auto read(uint32_t offset, std::span<uint8_t> buffer) -> bool;
+  static auto write(uint32_t offset, std::span<const uint8_t> data) -> bool;
+  static auto erase(uint32_t offset, size_t size) -> bool;
 
-  [[nodiscard]] static auto getFlashAddress(uint32_t offset) -> uint32_t;
+  static auto getFlashAddress(uint32_t offset) -> uint32_t;
 
   static auto loadConfig(SystemConfig& config) -> bool;
   static auto saveConfig(const SystemConfig& config) -> bool;
 
-  [[nodiscard]] static auto flushOutputBuffers() -> bool;
+  static auto flushOutputBuffers() -> bool;
 
 private:
   FlashManager()  = default;

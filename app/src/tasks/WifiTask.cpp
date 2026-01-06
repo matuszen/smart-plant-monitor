@@ -52,7 +52,7 @@ void processWifiCommand(const WifiCommand cmd, WifiTaskContext* const ctx, bool&
 
       ctx->mqttClient->setWifiReady(false);
 
-      const bool reboot = ctx->provisioner->startApAndServe(
+      const auto reboot = ctx->provisioner->startApAndServe(
         Config::AP::SESSION_TIMEOUT_MS, *ctx->mqttClient->getSensorController(), (bool*)&appCtx.apCancel);
 
       appCtx.apActive = false;
@@ -98,7 +98,7 @@ void processWifiCommand(const WifiCommand cmd, WifiTaskContext* const ctx, bool&
 
 void handleInitialConnection(WifiTaskContext* const ctx, const SystemConfig& config, bool& connected)
 {
-  auto connectedStatus = ctx->provisioner->connectSta(config.wifi);
+  const auto connectedStatus = ctx->provisioner->connectSta(config.wifi);
   if (connectedStatus)
   {
     ctx->mqttClient->setWifiReady(true);

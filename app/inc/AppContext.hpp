@@ -12,8 +12,8 @@
 
 enum class WifiCommand : uint8_t
 {
-  START_PROVISIONING = 0,
-  REBOOT             = 1
+  START_PROVISIONING,
+  REBOOT,
 };
 
 enum class NetworkLedState : uint8_t
@@ -22,7 +22,7 @@ enum class NetworkLedState : uint8_t
   CONNECTING,
   PROVISIONING,
   CONNECTED,
-  MQTT_CONNECTED
+  MQTT_CONNECTED,
 };
 
 struct LedSharedState
@@ -32,10 +32,7 @@ struct LedSharedState
   bool            activity    = false;
   NetworkLedState network     = NetworkLedState::OFF;
 
-  [[nodiscard]] auto isError() const -> bool
-  {
-    return sensorError or wifiError;
-  }
+  auto isError() const -> bool;
 };
 
 struct AppMessage
@@ -44,11 +41,11 @@ struct AppMessage
   {
     SENSOR_DATA,
     ACTIVITY_LOG
-  } type{};
+  } type = Type::SENSOR_DATA;
 
   SensorData sensorData;
-  bool       isWatering{};
-  bool       forceUpdate{};
+  bool       isWatering  = false;
+  bool       forceUpdate = false;
 
   std::array<char, 64> activityText{};
 };
@@ -59,65 +56,14 @@ struct AppContext
   QueueHandle_t     sensorDataQueue  = nullptr;
   SemaphoreHandle_t ledStateMutex    = nullptr;
 
-  LedSharedState ledState{};
+  LedSharedState ledState;
 
   volatile bool apActive = false;
   volatile bool apCancel = false;
 
-  void setNetworkLedState(const NetworkLedState state)
-  {
-    if (ledStateMutex == nullptr) [[unlikely]]
-    {
-      return;
-    }
-    xSemaphoreTake(ledStateMutex, portMAX_DELAY);
-    ledState.network = state;
-    xSemaphoreGive(ledStateMutex);
-  }
-
-  void setSensorError(const bool on)
-  {
-    if (ledStateMutex == nullptr) [[unlikely]]
-    {
-      return;
-    }
-    xSemaphoreTake(ledStateMutex, portMAX_DELAY);
-    ledState.sensorError = on;
-    xSemaphoreGive(ledStateMutex);
-  }
-
-  void setWifiError(const bool on)
-  {
-    if (ledStateMutex == nullptr) [[unlikely]]
-    {
-      return;
-    }
-    xSemaphoreTake(ledStateMutex, portMAX_DELAY);
-    ledState.wifiError = on;
-    xSemaphoreGive(ledStateMutex);
-  }
-
-  void setActivityLedState(const bool on)
-  {
-    if (ledStateMutex == nullptr) [[unlikely]]
-    {
-      return;
-    }
-    xSemaphoreTake(ledStateMutex, portMAX_DELAY);
-    ledState.activity = on;
-    xSemaphoreGive(ledStateMutex);
-  }
-
-  [[nodiscard]] auto readLedState() const -> LedSharedState
-  {
-    if (ledStateMutex == nullptr) [[unlikely]]
-    {
-      return LedSharedState{};
-    }
-
-    xSemaphoreTake(ledStateMutex, portMAX_DELAY);
-    const auto snapshot = ledState;
-    xSemaphoreGive(ledStateMutex);
-    return snapshot;
-  }
+  void setNetworkLedState(NetworkLedState state);
+  void setSensorError(bool on);
+  void setWifiError(bool on);
+  void setActivityLedState(bool on);
+  auto readLedState() const -> LedSharedState;
 };

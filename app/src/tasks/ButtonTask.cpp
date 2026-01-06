@@ -60,10 +60,11 @@ void handleButtonHold(AppContext& ctx, const uint32_t heldMs, bool& rebootSent)
 
 void buttonTask(void* const params)
 {
-  auto*    ctx = static_cast<AppContext*>(params);
-  bool     pressed{false};
-  bool     rebootSent{false};
-  uint32_t pressedAt{0};
+  auto* ctx = static_cast<AppContext*>(params);
+
+  bool     pressed    = false;
+  bool     rebootSent = false;
+  uint32_t pressedAt  = 0;
 
   while (true)
   {

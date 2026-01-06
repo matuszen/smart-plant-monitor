@@ -27,12 +27,12 @@
 namespace
 {
 
-inline constexpr uint32_t CONFIG_MAGIC      = 0x53'59'53'43U;  // SYSC
+inline constexpr uint32_t CONFIG_MAGIC      = 0x53'59'53'43U;
 inline constexpr uint32_t CRC32_POLYNOMIAL  = 0xED'B8'83'20U;
 inline constexpr uint32_t CRC32_INITIAL     = 0xFF'FF'FF'FFU;
 inline constexpr uint32_t SAVING_TIMEOUT_MS = 2'000U;
 
-[[nodiscard]] constexpr auto crc32(const void* const data, const size_t len) -> uint32_t
+constexpr auto crc32(const void* const data, const size_t len) -> uint32_t
 {
   auto        crc      = CRC32_INITIAL;
   const auto* bytes    = static_cast<const uint8_t*>(data);
@@ -49,7 +49,7 @@ inline constexpr uint32_t SAVING_TIMEOUT_MS = 2'000U;
   return ~crc;
 }
 
-[[nodiscard]] constexpr auto getOffsetSize() -> uint32_t
+constexpr auto getOffsetSize() -> uint32_t
 {
   return PICO_FLASH_SIZE_BYTES - FLASH_SECTOR_SIZE;
 }
@@ -81,19 +81,19 @@ auto FlashManager::getFlashAddress(const uint32_t offset) -> uint32_t
 
 auto FlashManager::read(const uint32_t offset, const std::span<uint8_t> buffer) -> bool
 {
-  if (offset + buffer.size() > PICO_FLASH_SIZE_BYTES)
+  if (offset + buffer.size() > PICO_FLASH_SIZE_BYTES) [[unlikely]]
   {
     return false;
   }
 
-  const auto* flashPtr = std::bit_cast<const uint8_t*>(getFlashAddress(offset));
+  const auto* const flashPtr = std::bit_cast<const uint8_t*>(getFlashAddress(offset));
   std::memcpy(buffer.data(), flashPtr, buffer.size());
   return true;
 }
 
 auto FlashManager::write(const uint32_t offset, const std::span<const uint8_t> data) -> bool
 {
-  if (offset + data.size() > PICO_FLASH_SIZE_BYTES)
+  if (offset + data.size() > PICO_FLASH_SIZE_BYTES) [[unlikely]]
   {
     return false;
   }
@@ -104,7 +104,7 @@ auto FlashManager::write(const uint32_t offset, const std::span<const uint8_t> d
     .size   = data.size(),
   };
 
-  if (not flushOutputBuffers())
+  if (not flushOutputBuffers()) [[unlikely]]
   {
     return false;
   }
@@ -126,12 +126,12 @@ auto FlashManager::write(const uint32_t offset, const std::span<const uint8_t> d
 
 auto FlashManager::erase(const uint32_t offset, const size_t size) -> bool
 {
-  if (offset + size > PICO_FLASH_SIZE_BYTES)
+  if (offset + size > PICO_FLASH_SIZE_BYTES) [[unlikely]]
   {
     printf("[FlashManager] Erase range out of bounds\n");
     return false;
   }
-  if ((offset % FLASH_SECTOR_SIZE != 0) or (size % FLASH_SECTOR_SIZE != 0))
+  if ((offset % FLASH_SECTOR_SIZE != 0) or (size % FLASH_SECTOR_SIZE != 0)) [[unlikely]]
   {
     printf("[FlashManager] Erase alignment error\n");
     return false;
@@ -143,7 +143,7 @@ auto FlashManager::erase(const uint32_t offset, const size_t size) -> bool
     .size   = size,
   };
 
-  if (not flushOutputBuffers())
+  if (not flushOutputBuffers()) [[unlikely]]
   {
     return false;
   }
@@ -168,16 +168,16 @@ auto FlashManager::loadConfig(SystemConfig& config) -> bool
   const auto offset = getOffsetSize();
   auto       record = FlashRecord{};
 
-  if (not read(offset, std::span(reinterpret_cast<uint8_t*>(&record), sizeof(record))))
+  if (not read(offset, std::span(reinterpret_cast<uint8_t*>(&record), sizeof(record)))) [[unlikely]]
   {
     return false;
   }
-  if (record.magic != CONFIG_MAGIC)
+  if (record.magic != CONFIG_MAGIC) [[unlikely]]
   {
     return false;
   }
   const uint32_t calculatedCrc = crc32(&record.config, sizeof(record.config));
-  if (calculatedCrc != record.crc)
+  if (calculatedCrc != record.crc) [[unlikely]]
   {
     return false;
   }
@@ -199,7 +199,7 @@ auto FlashManager::saveConfig(const SystemConfig& config) -> bool
   buffer.fill(0xFF);
   std::memcpy(buffer.data(), &record, sizeof(record));
 
-  if (not erase(offset, FLASH_SECTOR_SIZE))
+  if (not erase(offset, FLASH_SECTOR_SIZE)) [[unlikely]]
   {
     return false;
   }
@@ -209,12 +209,12 @@ auto FlashManager::saveConfig(const SystemConfig& config) -> bool
 
 auto FlashManager::flushOutputBuffers() -> bool
 {
-  if (fflush(stdout) != 0)
+  if (fflush(stdout) != 0) [[unlikely]]
   {
     printf("[FlashManager] Failed to flush stdout\n");
     return false;
   }
-  if (fflush(stderr) != 0)
+  if (fflush(stderr) != 0) [[unlikely]]
   {
     printf("[FlashManager] Failed to flush stderr\n");
     return false;

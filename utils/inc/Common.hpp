@@ -5,6 +5,6 @@
 namespace Utils
 {
 
-[[nodiscard]] auto getTimeSinceBoot() -> uint32_t;
+auto getTimeSinceBoot() -> uint32_t;
 
 }  // namespace Utils

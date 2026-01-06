@@ -155,7 +155,8 @@ auto MqttTransport::isConnected() const -> bool
   return connected_;
 }
 
-void MqttTransport::mqttConnectionCb(mqtt_client_t* client, void* arg, mqtt_connection_status_t status)
+void MqttTransport::mqttConnectionCb(mqtt_client_t* const client, void* const arg,
+                                     const mqtt_connection_status_t status)
 {
   auto* self = static_cast<MqttTransport*>(arg);
   if (status == MQTT_CONNECT_ACCEPTED)
@@ -183,7 +184,7 @@ void MqttTransport::mqttConnectionCb(mqtt_client_t* client, void* arg, mqtt_conn
   }
 }
 
-void MqttTransport::mqttIncomingPublishCb(void* arg, const char* topic, uint32_t tot_len)
+void MqttTransport::mqttIncomingPublishCb(void* const arg, const char* const topic, const uint32_t tot_len)
 {
   auto* self           = static_cast<MqttTransport*>(arg);
   self->incomingTopic_ = topic;
@@ -191,7 +192,8 @@ void MqttTransport::mqttIncomingPublishCb(void* arg, const char* topic, uint32_t
   self->incomingPayload_.reserve(tot_len);
 }
 
-void MqttTransport::mqttIncomingDataCb(void* arg, const uint8_t* data, uint16_t len, uint8_t flags)
+void MqttTransport::mqttIncomingDataCb(void* const arg, const uint8_t* const data, const uint16_t len,
+                                       const uint8_t flags)
 {
   auto* self = static_cast<MqttTransport*>(arg);
   self->incomingPayload_.append(reinterpret_cast<const char*>(data), len);

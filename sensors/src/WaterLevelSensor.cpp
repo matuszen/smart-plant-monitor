@@ -49,7 +49,7 @@ auto WaterLevelSensor::read() -> std::optional<WaterLevelData>
   }
 
   const auto activeSections = static_cast<uint8_t>(
-    std::ranges::count_if(sensorData, [](uint8_t v) -> bool { return v > Config::WATER_LEVEL_TOUCH_THRESHOLD; }));
+    std::ranges::count_if(sensorData, [](const uint8_t v) -> bool { return v > Config::WATER_LEVEL_TOUCH_THRESHOLD; }));
 
   const auto waterLevelReading = WaterLevelData{
     .percentage     = std::min(100.0F, (activeSections / static_cast<float>(TOTAL_SECTIONS)) * 100.0F),

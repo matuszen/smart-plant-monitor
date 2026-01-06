@@ -21,7 +21,7 @@
 namespace
 {
 
-[[nodiscard]] constexpr auto hasValue(const char* const text) -> bool
+constexpr auto hasValue(const char* const text) -> bool
 {
   return (text != nullptr) and (std::char_traits<char>::length(text) > 0);
 }
@@ -39,7 +39,7 @@ void buildDiscoveryJson(std::array<char, N>& payload, const char* name, const ch
                         const char* min = nullptr, const char* max = nullptr)
 {
   int        offset = 0;
-  const auto append = [&](const char* fmt, auto... args) -> auto
+  const auto append = [&](const char* fmt, auto... args) -> void
   {
     if (offset < 0)
     {
@@ -98,16 +98,51 @@ void buildDiscoveryJson(std::array<char, N>& payload, const char* name, const ch
 
 }  // namespace
 
-MQTTClient::MQTTClient(SensorController* const sensorController, IrrigationController* const irrigationController)
+MQTTClient::MQTTClient(SensorController& sensorController, IrrigationController& irrigationController)
   : sensorController_(sensorController), irrigationController_(irrigationController)
 {
 }
 
 MQTTClient::~MQTTClient() = default;
 
+auto MQTTClient::getPublishInterval() const -> uint32_t
+{
+  return config_.publishIntervalMs;
+}
+
+auto MQTTClient::getIrrigationController() const -> IrrigationController*
+{
+  return &irrigationController_;
+}
+
+auto MQTTClient::getSensorController() const -> SensorController*
+{
+  return &sensorController_;
+}
+
 auto MQTTClient::isConnected() const -> bool
 {
   return transport_.isConnected();
+}
+
+void MQTTClient::setWifiReady(bool ready)
+{
+  wifiReady_ = ready;
+}
+
+void MQTTClient::requestUpdate()
+{
+  updateRequest_ = true;
+}
+
+auto MQTTClient::isUpdateRequested() const -> bool
+{
+  return updateRequest_;
+}
+
+void MQTTClient::clearUpdateRequest()
+{
+  updateRequest_ = false;
 }
 
 auto MQTTClient::init(const MqttConfig& config) -> bool
@@ -139,7 +174,7 @@ auto MQTTClient::init(const MqttConfig& config) -> bool
     return false;
   }
 
-  transport_.setOnMessage([this](std::string_view topic, std::string_view payload)
+  transport_.setOnMessage([this](std::string_view topic, std::string_view payload) -> void
                           { this->handleCommand(topic, payload); });
 
   printf("[MQTTClient] MQTT client ready\n");
@@ -166,7 +201,7 @@ void MQTTClient::loop(const uint32_t nowMs)
     {
       if (hasData_)
       {
-        publishSensorState(nowMs, lastData_, irrigationController_->isWatering(), true);
+        publishSensorState(nowMs, lastData_, irrigationController_.isWatering(), true);
       }
       publishIntervalState();
       needsInitialPublish_ = false;
@@ -285,9 +320,9 @@ void MQTTClient::publishAvailability(const bool online)
   (void)transport_.publish(availabilityTopic_.data(), online ? "online" : "offline", true);
 }
 
-void MQTTClient::publishSensorDiscovery(std::string_view component, std::string_view objectId, std::string_view name,
-                                        std::string_view valueTemplate, std::string_view unit,
-                                        std::string_view deviceClass)
+void MQTTClient::publishSensorDiscovery(const std::string_view component, const std::string_view objectId,
+                                        const std::string_view name, const std::string_view valueTemplate,
+                                        const std::string_view unit, const std::string_view deviceClass)
 {
   std::array<char, 128> topic{};
   (void)std::snprintf(topic.data(), topic.size(), "%s/%.*s/%.*s/config", config_.discoveryPrefix.data(),
@@ -462,22 +497,22 @@ void MQTTClient::handleModeCommand(const std::string_view payload)
     return;
   }
 
-  irrigationController_->setMode(mode);
+  irrigationController_.setMode(mode);
   (void)transport_.publish(modeStateTopic_.data(), std::string(payload).c_str(), true);
 }
 
 void MQTTClient::handleTriggerCommand(const std::string_view payload)
 {
-  if (payload == "PRESS" and irrigationController_->getMode() == IrrigationMode::MANUAL)
+  if (payload == "PRESS" and irrigationController_.getMode() == IrrigationMode::MANUAL)
   {
-    const auto waterLevel = sensorController_->readWaterLevel();
+    const auto waterLevel = sensorController_.readWaterLevel();
     if (waterLevel.isEmpty())
     {
       printf("[MQTTClient] Trigger ignored: Water tank is empty\n");
       publishActivity("Trigger ignored: Empty tank");
       return;
     }
-    irrigationController_->startWatering(Config::DEFAULT_WATERING_DURATION_MS);
+    irrigationController_.startWatering(Config::DEFAULT_WATERING_DURATION_MS);
   }
 }
 

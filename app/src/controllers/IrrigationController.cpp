@@ -13,7 +13,7 @@
 #include <cstdint>
 #include <cstdio>
 
-IrrigationController::IrrigationController(SensorController* sensorController) : sensorController_(sensorController)
+IrrigationController::IrrigationController(SensorController& sensorController) : sensorController_(sensorController)
 {
 }
 
@@ -23,6 +23,21 @@ IrrigationController::~IrrigationController()
   {
     stopWatering();
   }
+}
+
+auto IrrigationController::getMode() const -> IrrigationMode
+{
+  return mode_;
+}
+
+auto IrrigationController::isWatering() const -> bool
+{
+  return isWatering_;
+}
+
+auto IrrigationController::isInitialized() const -> bool
+{
+  return initialized_;
 }
 
 auto IrrigationController::init() -> bool
@@ -154,18 +169,18 @@ void IrrigationController::activateWaterPump(const bool enable)
 
 auto IrrigationController::shouldStartWatering() const -> bool
 {
-  if ((sensorController_ == nullptr) or not sensorController_->isInitialized())
+  if (not sensorController_.isInitialized())
   {
     return false;
   }
 
-  const auto soilData = sensorController_->readSoilMoisture();
+  const auto soilData = sensorController_.readSoilMoisture();
   if (not soilData.valid) [[unlikely]]
   {
     return false;
   }
 
-  const auto waterLevel = sensorController_->readWaterLevel();
+  const auto waterLevel = sensorController_.readWaterLevel();
   if (not waterLevel.isValid()) [[unlikely]]
   {
     return false;

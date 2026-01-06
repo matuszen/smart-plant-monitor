@@ -25,7 +25,7 @@
 namespace
 {
 
-[[nodiscard]] auto resolveI2CInstance(const uint8_t instance) -> i2c_inst_t*
+auto resolveI2CInstance(const uint8_t instance) -> i2c_inst_t*
 {
   switch (instance)
   {

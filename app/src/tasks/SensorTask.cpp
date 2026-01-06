@@ -87,7 +87,7 @@ void logIrrigation(const IrrigationController& irrigationController)
 void logWaterLevel(const SensorData& data)
 {
   printf("  Water Level: ");
-  if (not data.water.isValid())
+  if (not data.water.isValid()) [[unlikely]]
   {
     printf("Unavailable\n");
     return;
@@ -104,7 +104,8 @@ void updateErrorLedFromData(AppContext& ctx, const SensorData& data)
 }
 
 auto handleSensorRead(const uint32_t now, SensorController& sensorController,
-                      IrrigationController& irrigationController, AppContext& ctx, bool force = false) -> SensorData
+                      IrrigationController& irrigationController, AppContext& ctx,
+                      const bool force = false) -> SensorData
 {
   printf("[%u] Reading sensors...\n", now);
 
@@ -119,11 +120,12 @@ auto handleSensorRead(const uint32_t now, SensorController& sensorController,
 
   irrigationController.update(data);
 
-  AppMessage msg;
-  msg.type        = AppMessage::Type::SENSOR_DATA;
-  msg.sensorData  = data;
-  msg.isWatering  = irrigationController.isWatering();
-  msg.forceUpdate = force;
+  const auto msg = AppMessage{
+    .type        = AppMessage::Type::SENSOR_DATA,
+    .sensorData  = data,
+    .isWatering  = irrigationController.isWatering(),
+    .forceUpdate = force,
+  };
 
   if (ctx.sensorDataQueue != nullptr)
   {
@@ -163,8 +165,8 @@ void handleNormalSensorRead(const uint32_t now, uint32_t& lastSensorRead, bool& 
   lastSensorRead  = now;
 }
 
-auto shouldPerformSensorRead(const uint32_t now, uint32_t lastSensorRead, uint32_t sensorReadInterval,
-                             bool waterLevelError) -> bool
+auto shouldPerformSensorRead(const uint32_t now, const uint32_t lastSensorRead, const uint32_t sensorReadInterval,
+                             const bool waterLevelError) -> bool
 {
   if (waterLevelError)
   {
@@ -179,7 +181,6 @@ void handleWateringStateChange(bool& wasWatering, const bool isWatering, const u
 {
   if (wasWatering and not isWatering)
   {
-    // Irrigation finished
     AppMessage msg;
     msg.type = AppMessage::Type::ACTIVITY_LOG;
     strncpy(msg.activityText.data(), "Irrigation finished", msg.activityText.size() - 1);
@@ -206,9 +207,9 @@ void handleWateringStateChange(bool& wasWatering, const bool isWatering, const u
   wasWatering = isWatering;
 }
 
-void determineSensorReadNeeds(const uint32_t now, uint32_t lastSensorRead, uint32_t sensorReadInterval,
-                              bool waterLevelError, bool& shouldRead, bool& onlyWaterLevel, bool& forceUpdate,
-                              uint32_t scheduledReadTime, bool& pendingPostWateringRead,
+void determineSensorReadNeeds(const uint32_t now, const uint32_t lastSensorRead, const uint32_t sensorReadInterval,
+                              const bool waterLevelError, bool& shouldRead, bool& onlyWaterLevel, bool& forceUpdate,
+                              const uint32_t scheduledReadTime, bool& pendingPostWateringRead,
                               IrrigationController& irrigationController, MQTTClient& mqttClient)
 {
   if (mqttClient.isUpdateRequested())
@@ -246,7 +247,7 @@ void sensorTask(void* const params)
   auto& mqttClient           = *taskCtx.mqttClient;
 
   SystemConfig config;
-  if (not FlashManager::loadConfig(config))
+  if (not FlashManager::loadConfig(config)) [[unlikely]]
   {
     config = {};
   }
@@ -268,7 +269,7 @@ void sensorTask(void* const params)
   while (true)
   {
     const auto now        = Utils::getTimeSinceBoot();
-    const bool isWatering = irrigationController.isWatering();
+    const auto isWatering = irrigationController.isWatering();
     appCtx.setActivityLedState(isWatering);
 
     handleWateringStateChange(wasWatering, isWatering, now, scheduledReadTime, pendingPostWateringRead, appCtx);

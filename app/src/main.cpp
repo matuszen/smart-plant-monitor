@@ -24,8 +24,8 @@ namespace
 {
 
 SensorController     sensorController;
-IrrigationController irrigationController(&sensorController);
-MQTTClient           mqttClient(&sensorController, &irrigationController);
+IrrigationController irrigationController(sensorController);
+MQTTClient           mqttClient(sensorController, irrigationController);
 ConnectionController wifiProvisioner;
 
 void initSystem()
@@ -47,7 +47,7 @@ void initSystem()
   }
 
   SystemConfig config;
-  if (FlashManager::loadConfig(config))
+  if (FlashManager::loadConfig(config)) [[likely]]
   {
     irrigationController.setMode(config.irrigationMode);
     printf("Configuration loaded. Irrigation Mode: %d\n", static_cast<int32_t>(config.irrigationMode));

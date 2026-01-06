@@ -74,7 +74,7 @@ void percentDecode(const std::span<char> str)
   }
 }
 
-[[nodiscard]] auto sendAll(const int32_t client, const std::span<const char> data) -> bool
+auto sendAll(const int32_t client, const std::span<const char> data) -> bool
 {
   size_t sent = 0;
   while (sent < data.size())
@@ -487,4 +487,14 @@ auto ConnectionController::startApAndServe(const uint32_t timeoutMs, SensorContr
   provisioning_ = false;
 
   return rebootRequested;
+}
+
+auto ConnectionController::isConnected() const -> bool
+{
+  return connected_;
+}
+
+auto ConnectionController::isProvisioning() const -> bool
+{
+  return provisioning_;
 }

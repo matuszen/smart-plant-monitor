@@ -22,9 +22,9 @@ public:
   SoilMoistureSensor(SoilMoistureSensor&&)                         = delete;
   auto operator=(SoilMoistureSensor&&) -> SoilMoistureSensor&      = delete;
 
-  [[nodiscard]] auto init() -> bool;
-  [[nodiscard]] auto read() -> std::optional<SoilMoistureData>;
-  [[nodiscard]] auto isAvailable() const -> bool
+  auto init() -> bool;
+  auto read() -> std::optional<SoilMoistureData>;
+  auto isAvailable() const -> bool
   {
     return initialized_;
   }
@@ -32,14 +32,14 @@ public:
   void calibrate(uint16_t dryValue, uint16_t wetValue);
 
 private:
-  uint8_t adcPin_{};
-  uint8_t adcChannel_{};
-  uint8_t powerPin_{};
-  bool    initialized_{false};
+  uint8_t adcPin_      = 0;
+  uint8_t adcChannel_  = 0;
+  uint8_t powerPin_    = 0;
+  bool    initialized_ = false;
 
-  uint16_t soilDryValue_{Config::SOIL_DRY_VALUE};
-  uint16_t soilWetValue_{Config::SOIL_WET_VALUE};
+  uint16_t soilDryValue_ = Config::SOIL_DRY_VALUE;
+  uint16_t soilWetValue_ = Config::SOIL_WET_VALUE;
 
-  [[nodiscard]] static auto readADC(uint8_t channel) -> uint16_t;
-  [[nodiscard]] static auto mapToPercentage(uint16_t value, uint16_t minVal, uint16_t maxVal) -> float;
+  static auto readADC(uint8_t channel) -> uint16_t;
+  static auto mapToPercentage(uint16_t value, uint16_t minVal, uint16_t maxVal) -> float;
 };

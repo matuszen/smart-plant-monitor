@@ -18,24 +18,18 @@ public:
   ConnectionController(ConnectionController&&)                         = delete;
   auto operator=(ConnectionController&&) -> ConnectionController&      = delete;
 
-  [[nodiscard]] auto init() -> bool;
+  auto init() -> bool;
 
-  [[nodiscard]] auto connectSta(const WifiCredentials& creds) -> bool;
-  [[nodiscard]] auto startApAndServe(uint32_t timeoutMs, SensorController& sensorController,
-                                     const volatile bool* cancelFlag = nullptr) -> bool;
+  auto connectSta(const WifiCredentials& creds) -> bool;
+  auto startApAndServe(uint32_t timeoutMs, SensorController& sensorController,
+                       const volatile bool* cancelFlag = nullptr) -> bool;
 
-  [[nodiscard]] auto isConnected() const -> bool
-  {
-    return connected_;
-  }
+  auto isConnected() const -> bool;
 
-  [[nodiscard]] auto isProvisioning() const -> bool
-  {
-    return provisioning_;
-  }
+  auto isProvisioning() const -> bool;
 
 private:
-  [[nodiscard]] static auto flashStorageOffset() -> uint32_t;
+  static auto flashStorageOffset() -> uint32_t;
 
   bool initialized_  = false;
   bool connected_    = false;
