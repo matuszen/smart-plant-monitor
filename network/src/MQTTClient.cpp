@@ -272,8 +272,9 @@ void MQTTClient::publishSensorState(const uint32_t nowMs, const SensorData& data
   }
 
   std::array<char, 256> payload{};
-  const auto            isLightDataValid = data.light.isValid();
-  const auto            isWaterDataValid = data.water.isValid();
+
+  const auto isLightDataValid = data.light.isValid();
+  const auto isWaterDataValid = data.water.isValid();
 
   (void)std::snprintf(payload.data(), payload.size(),
                       "{\"temperature\":%.2f,\"humidity\":%.2f,\"pressure\":%.2f,"
@@ -471,7 +472,7 @@ void MQTTClient::handleCommand(const std::string_view topic, const std::string_v
 
 void MQTTClient::handleModeCommand(const std::string_view payload)
 {
-  IrrigationMode mode = IrrigationMode::OFF;
+  auto mode = IrrigationMode::OFF;
   if (payload == "OFF")
   {
     mode = IrrigationMode::OFF;
@@ -519,7 +520,7 @@ void MQTTClient::handleTriggerCommand(const std::string_view payload)
 void MQTTClient::handleIntervalCommand(const std::string_view payload)
 {
   uint32_t intervalSec = 0;
-  const auto [ptr, ec] = std::from_chars(payload.begin(), payload.end(), intervalSec);
+  const auto [_, ec]   = std::from_chars(payload.begin(), payload.end(), intervalSec);
   if (ec == std::errc() and intervalSec >= 60 and intervalSec <= 86400)
   {
     setPublishInterval(intervalSec * 1000);

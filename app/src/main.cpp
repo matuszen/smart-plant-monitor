@@ -26,7 +26,7 @@ namespace
 SensorController     sensorController;
 IrrigationController irrigationController(sensorController);
 MQTTClient           mqttClient(sensorController, irrigationController);
-ConnectionController wifiProvisioner;
+ConnectionController connectionController;
 
 void initSystem()
 {
@@ -78,7 +78,7 @@ auto main(const int /*argc*/, const char* const /*argv*/[]) -> int
   }
 
   initSystem();
-  startAppTasks(irrigationController, mqttClient, wifiProvisioner);
+  startAppTasks(irrigationController, mqttClient, connectionController);
 
   while (true)
   {

@@ -69,17 +69,17 @@ void irrigationTask(void* const params)
 }  // namespace
 
 void startAppTasks(IrrigationController& irrigationController, MQTTClient& mqttClient,
-                   ConnectionController& provisioner)
+                   ConnectionController& connectionController)
 {
   initUserInterfacePins();
 
   blinkErrorBlocking(3);
 
-  static AppContext appContext{};
-
-  appContext.ledStateMutex    = xSemaphoreCreateMutex();
-  appContext.wifiCommandQueue = xQueueCreate(2, sizeof(WifiCommand));
-  appContext.sensorDataQueue  = xQueueCreate(5, sizeof(AppMessage));
+  static auto appContext = AppContext{
+    .wifiCommandQueue = xQueueCreate(2, sizeof(WifiCommand)),
+    .sensorDataQueue  = xQueueCreate(5, sizeof(AppMessage)),
+    .ledStateMutex    = xSemaphoreCreateMutex(),
+  };
 
   if ((appContext.ledStateMutex == nullptr) or (appContext.wifiCommandQueue == nullptr) or
       (appContext.sensorDataQueue == nullptr)) [[unlikely]]
@@ -88,7 +88,7 @@ void startAppTasks(IrrigationController& irrigationController, MQTTClient& mqttC
   }
 
   static auto wifiCtx = WifiTaskContext{
-    .provisioner = &provisioner,
+    .provisioner = &connectionController,
     .mqttClient  = &mqttClient,
     .appContext  = &appContext,
   };

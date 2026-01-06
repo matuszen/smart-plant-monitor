@@ -8,4 +8,4 @@
 #include <portmacrocommon.h>
 
 void startAppTasks(IrrigationController& irrigationController, MQTTClient& mqttClient,
-                   ConnectionController& provisioner);
+                   ConnectionController& connectionController);

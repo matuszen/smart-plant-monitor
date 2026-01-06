@@ -282,15 +282,14 @@ void IrrigationController::handleEvapotranspirationMode(const SensorData& sensor
 
 auto IrrigationController::computeEvapoLossPerHour(const EnvironmentData& env) -> float
 {
-  const auto tempC          = env.temperature;
-  const auto humidity       = std::clamp(env.humidity, 0.0F, 100.0F);
-  const auto satVapor       = 0.6108F * std::exp((17.27F * tempC) / (tempC + 237.3F));
-  const auto vpd            = satVapor * (1.0F - (humidity / 100.0F));
+  const auto tempC    = env.temperature;
+  const auto humidity = std::clamp(env.humidity, 0.0F, 100.0F);
+
+  const auto satVapor = 0.6108F * std::exp((17.27F * tempC) / (tempC + 237.3F));
+  const auto vpd      = satVapor * (1.0F - (humidity / 100.0F));
+
   const auto pressureK      = env.pressure * 0.001F;
   const auto pressureFactor = std::max(0.7F, pressureK / 101.325F);
 
-  const auto etMmPerHour = std::max(0.0F, (0.12F + 0.45F * vpd) * pressureFactor);
-  const auto pctPerHour  = (etMmPerHour / Config::EVAPO_SOIL_BUCKET_MM) * 100.0F;
-
-  return std::max(pctPerHour, Config::EVAPO_MIN_DROP_PER_HOUR_PCT);
+  return std::max(0.0F, (0.12F + 0.45F * vpd) * pressureFactor);
 }

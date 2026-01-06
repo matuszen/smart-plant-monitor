@@ -26,9 +26,9 @@ public:
 
   auto init() -> bool;
 
-  auto readAllSensors() -> SensorData;
+  auto readAllSensors() const -> SensorData;
 
-  auto readBME280() -> EnvironmentData;
+  auto readBME280() const -> EnvironmentData;
   auto readLightLevel() const -> LightLevelData;
   auto readSoilMoisture() const -> SoilMoistureData;
   auto readWaterLevel() const -> WaterLevelData;

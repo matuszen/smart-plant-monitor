@@ -13,9 +13,9 @@
 #include <hardware/gpio.h>
 #include <hardware/i2c.h>
 #include <hardware/structs/io_bank0.h>
-#include <pico/mutex.h>
 #include <pico/time.h>
 #include <portmacrocommon.h>
+#include <projdefs.h>
 #include <semphr.h>
 
 #include <cstdint>
@@ -37,33 +37,6 @@ auto resolveI2CInstance(const uint8_t instance) -> i2c_inst_t*
       return nullptr;
   }
 }
-
-class MutexGuard
-{
-public:
-  explicit MutexGuard(SemaphoreHandle_t handle) : handle_(handle)
-  {
-    if (handle_ != nullptr)
-    {
-      xSemaphoreTakeRecursive(handle_, portMAX_DELAY);
-    }
-  }
-  ~MutexGuard()
-  {
-    if (handle_ != nullptr)
-    {
-      xSemaphoreGiveRecursive(handle_);
-    }
-  }
-
-  MutexGuard(const MutexGuard&)                    = delete;
-  auto operator=(const MutexGuard&) -> MutexGuard& = delete;
-  MutexGuard(MutexGuard&&)                         = delete;
-  auto operator=(MutexGuard&&) -> MutexGuard&      = delete;
-
-private:
-  SemaphoreHandle_t handle_{};
-};
 
 }  // namespace
 
@@ -144,88 +117,114 @@ auto SensorController::init() -> bool
   return true;
 }
 
-auto SensorController::readAllSensors() -> SensorData
+auto SensorController::readAllSensors() const -> SensorData
 {
-  const auto data = SensorData{
+  return {
     .environment = readBME280(),
     .light       = readLightLevel(),
     .soil        = readSoilMoisture(),
     .water       = readWaterLevel(),
     .timestamp   = Utils::getTimeSinceBoot(),
   };
-  return data;
 }
 
-auto SensorController::readBME280() -> EnvironmentData
+auto SensorController::readBME280() const -> EnvironmentData
 {
-  const MutexGuard guard(sensorMutex_);
+  EnvironmentData result{};
 
-  if (not environmentalSensor_) [[unlikely]]
+  if (xSemaphoreTakeRecursive(sensorMutex_, portMAX_DELAY) != pdPASS)
   {
-    return EnvironmentData{};
+    return result;
+  }
+
+  if (not environmentalSensor_)
+  {
+    xSemaphoreGiveRecursive(sensorMutex_);
+    return result;
   }
 
   const auto measurement = environmentalSensor_->read();
-  if (not measurement) [[unlikely]]
+  if (measurement)
   {
-    return EnvironmentData{};
+    result = measurement.value();
   }
 
-  return measurement.value();
+  xSemaphoreGiveRecursive(sensorMutex_);
+  return result;
 }
 
 auto SensorController::readLightLevel() const -> LightLevelData
 {
-  const MutexGuard guard(sensorMutex_);
+  LightLevelData result{};
 
-  if (not lightSensor_) [[unlikely]]
+  if (xSemaphoreTakeRecursive(sensorMutex_, portMAX_DELAY) != pdPASS)
   {
-    return LightLevelData{};
+    return result;
   }
 
+  if (not lightSensor_)
+  {
+    xSemaphoreGiveRecursive(sensorMutex_);
+    return result;
+  }
   const auto measurement = lightSensor_->read();
-  if (not measurement) [[unlikely]]
+  if (measurement)
   {
-    return LightLevelData{};
+    result = measurement.value();
   }
 
-  return measurement.value();
+  xSemaphoreGiveRecursive(sensorMutex_);
+  return result;
 }
 
 auto SensorController::readSoilMoisture() const -> SoilMoistureData
 {
-  const MutexGuard guard(sensorMutex_);
+  SoilMoistureData result{};
 
-  if (not soilSensor_) [[unlikely]]
+  if (xSemaphoreTakeRecursive(sensorMutex_, portMAX_DELAY) != pdPASS)
   {
-    return SoilMoistureData{};
+    return result;
+  }
+
+  if (not soilSensor_)
+  {
+    xSemaphoreGiveRecursive(sensorMutex_);
+    return result;
   }
 
   const auto measurement = soilSensor_->read();
-  if (not measurement) [[unlikely]]
+  if (measurement)
   {
-    return SoilMoistureData{};
+    result = measurement.value();
   }
 
-  return measurement.value();
+  xSemaphoreGiveRecursive(sensorMutex_);
+  return result;
 }
 
 auto SensorController::readWaterLevel() const -> WaterLevelData
 {
-  const MutexGuard guard(sensorMutex_);
+  WaterLevelData result{};
 
-  if (not waterSensor_) [[unlikely]]
+  if (xSemaphoreTakeRecursive(sensorMutex_, portMAX_DELAY) != pdPASS)
   {
-    return WaterLevelData{};
+    return result;
+  }
+
+  if (not waterSensor_)
+  {
+    xSemaphoreGiveRecursive(sensorMutex_);
+    return result;
   }
 
   const auto measurement = waterSensor_->read();
-  if (not measurement) [[unlikely]]
+  if (measurement)
   {
-    return WaterLevelData{};
+    result = measurement.value();
   }
 
-  return measurement.value();
+  xSemaphoreGiveRecursive(sensorMutex_);
+  return result;
 }
 
 void SensorController::calibrateSoilMoisture(const uint16_t dryValue, const uint16_t wetValue)
