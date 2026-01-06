@@ -1,7 +1,8 @@
 #include "MQTTClient.hpp"
+
 #include "Config.hpp"
 #include "IrrigationController.hpp"
-#include "SensorManager.hpp"
+#include "SensorController.hpp"
 #include "Types.hpp"
 
 #include <pico/time.h>
@@ -97,8 +98,8 @@ void buildDiscoveryJson(std::array<char, N>& payload, const char* name, const ch
 
 }  // namespace
 
-MQTTClient::MQTTClient(SensorManager* const sensorManager, IrrigationController* const irrigationController)
-  : sensorManager_(sensorManager), irrigationController_(irrigationController)
+MQTTClient::MQTTClient(SensorController* const sensorController, IrrigationController* const irrigationController)
+  : sensorController_(sensorController), irrigationController_(irrigationController)
 {
 }
 
@@ -469,7 +470,7 @@ void MQTTClient::handleTriggerCommand(const std::string_view payload)
 {
   if (payload == "PRESS" and irrigationController_->getMode() == IrrigationMode::MANUAL)
   {
-    const auto waterLevel = sensorManager_->readWaterLevel();
+    const auto waterLevel = sensorController_->readWaterLevel();
     if (waterLevel.isEmpty())
     {
       printf("[MQTTClient] Trigger ignored: Water tank is empty\n");

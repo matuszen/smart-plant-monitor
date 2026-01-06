@@ -1,8 +1,9 @@
 #pragma once
 
-#include "IrrigationController.hpp"
 #include "MqttTransport.hpp"
-#include "SensorManager.hpp"
+
+#include "IrrigationController.hpp"
+#include "SensorController.hpp"
 #include "Types.hpp"
 
 #include <array>
@@ -12,7 +13,7 @@
 class MQTTClient final
 {
 public:
-  MQTTClient(SensorManager* sensorManager, IrrigationController* irrigationController);
+  MQTTClient(SensorController* sensorController, IrrigationController* irrigationController);
   ~MQTTClient();
 
   MQTTClient(const MQTTClient&)                    = delete;
@@ -31,14 +32,14 @@ public:
     return config_.publishIntervalMs;
   }
 
-  [[nodiscard]] auto getSensorManager() const -> SensorManager*
-  {
-    return sensorManager_;
-  }
-
   [[nodiscard]] auto getIrrigationController() const -> IrrigationController*
   {
     return irrigationController_;
+  }
+
+  [[nodiscard]] auto getSensorController() const -> SensorController*
+  {
+    return sensorController_;
   }
 
   [[nodiscard]] auto isConnected() const -> bool;
@@ -84,7 +85,7 @@ private:
   MqttTransport transport_;
   MqttConfig    config_;
 
-  SensorManager*        sensorManager_{nullptr};
+  SensorController*     sensorController_{nullptr};
   IrrigationController* irrigationController_{nullptr};
 
   bool wifiReady_{false};

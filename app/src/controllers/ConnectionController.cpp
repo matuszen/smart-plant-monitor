@@ -1,10 +1,11 @@
-#include "ConnectionManager.hpp"
+#include "ConnectionController.hpp"
+#include "SensorController.hpp"
+
+#include "Common.hpp"
 #include "Config.hpp"
 #include "FlashManager.hpp"
-#include "SensorManager.hpp"
 #include "Types.hpp"
 #include "WifiDriver.hpp"
-
 #include "web/provision_page.html"
 
 #include <FreeRTOS.h>
@@ -141,7 +142,7 @@ auto configToJson(const SystemConfig& cfg) -> std::string
   return {buf.data()};
 }
 
-auto sensorsToJson(SensorManager& sm) -> std::string
+auto sensorsToJson(SensorController& sm) -> std::string
 {
   const auto data = sm.readAllSensors();
 
@@ -237,7 +238,8 @@ void updateConfigFromJson(SystemConfig& cfg, const std::string_view json)
   }
 }
 
-auto handleClientRequest(const int32_t client, SystemConfig& config, bool& rebootRequested, SensorManager& sm) -> bool
+auto handleClientRequest(const int32_t client, SystemConfig& config, bool& rebootRequested,
+                         SensorController& sm) -> bool
 {
   std::array<char, 2048> buf{};
   const auto             len = lwip_recv(client, buf.data(), buf.size() - 1, 0);
@@ -309,15 +311,15 @@ auto handleClientRequest(const int32_t client, SystemConfig& config, bool& reboo
 }
 
 auto runProvisioningLoop(int server, SystemConfig& config, uint32_t timeoutMs, const volatile bool* cancelFlag,
-                         SensorManager& sensorManager) -> bool
+                         SensorController& sensorController) -> bool
 {
-  const auto startMs         = to_ms_since_boot(get_absolute_time());
+  const auto startMs         = Utils::getTimeSinceBoot();
   bool       rebootRequested = false;
 
   while (true)
   {
-    const auto nowMs = to_ms_since_boot(get_absolute_time());
-    if ((timeoutMs > 0U) and (nowMs - startMs >= timeoutMs)) [[unlikely]]
+    const auto now = Utils::getTimeSinceBoot();
+    if ((timeoutMs > 0U) and (now - startMs >= timeoutMs)) [[unlikely]]
     {
       printf("[WiFi] AP timeout reached, stopping provisioning\n");
       break;
@@ -362,7 +364,7 @@ auto runProvisioningLoop(int server, SystemConfig& config, uint32_t timeoutMs, c
     lwip_setsockopt(client, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
     lwip_setsockopt(client, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
 
-    handleClientRequest(client, config, rebootRequested, sensorManager);
+    handleClientRequest(client, config, rebootRequested, sensorController);
 
     if (rebootRequested)
     {
@@ -378,7 +380,7 @@ auto runProvisioningLoop(int server, SystemConfig& config, uint32_t timeoutMs, c
 
 }  // namespace
 
-auto ConnectionManager::init() -> bool
+auto ConnectionController::init() -> bool
 {
   if (initialized_)
   {
@@ -395,7 +397,7 @@ auto ConnectionManager::init() -> bool
   return true;
 }
 
-auto ConnectionManager::connectSta(const WifiCredentials& creds) -> bool
+auto ConnectionController::connectSta(const WifiCredentials& creds) -> bool
 {
   if (not creds.valid) [[unlikely]]
   {
@@ -420,8 +422,8 @@ auto ConnectionManager::connectSta(const WifiCredentials& creds) -> bool
   return true;
 }
 
-auto ConnectionManager::startApAndServe(const uint32_t timeoutMs, SensorManager& sensorManager,
-                                        const volatile bool* const cancelFlag) -> bool
+auto ConnectionController::startApAndServe(const uint32_t timeoutMs, SensorController& sensorController,
+                                           const volatile bool* const cancelFlag) -> bool
 {
   if (not init())
   {
@@ -478,7 +480,7 @@ auto ConnectionManager::startApAndServe(const uint32_t timeoutMs, SensorManager&
   lwip_bind(server, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr));
   lwip_listen(server, 2);
 
-  const auto rebootRequested = runProvisioningLoop(server, config, timeoutMs, cancelFlag, sensorManager);
+  const auto rebootRequested = runProvisioningLoop(server, config, timeoutMs, cancelFlag, sensorController);
 
   lwip_close(server);
   WifiDriver::stopAp();

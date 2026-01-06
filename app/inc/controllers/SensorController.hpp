@@ -13,16 +13,16 @@
 #include <cstdint>
 #include <memory>
 
-class SensorManager final
+class SensorController final
 {
 public:
-  SensorManager()  = default;
-  ~SensorManager() = default;
+  SensorController()  = default;
+  ~SensorController() = default;
 
-  SensorManager(const SensorManager&)                    = delete;
-  auto operator=(const SensorManager&) -> SensorManager& = delete;
-  SensorManager(SensorManager&&)                         = delete;
-  auto operator=(SensorManager&&) -> SensorManager&      = delete;
+  SensorController(const SensorController&)                    = delete;
+  auto operator=(const SensorController&) -> SensorController& = delete;
+  SensorController(SensorController&&)                         = delete;
+  auto operator=(SensorController&&) -> SensorController&      = delete;
 
   [[nodiscard]] auto init() -> bool;
 
@@ -35,20 +35,14 @@ public:
 
   void calibrateSoilMoisture(uint16_t dryValue, uint16_t wetValue);
 
-  [[nodiscard]] auto isInitialized() const -> bool
-  {
-    return initialized_;
-  }
-  [[nodiscard]] auto isBME280Available() const -> bool
-  {
-    return environmentalSensor_ and environmentalSensor_->isAvailable();
-  }
+  [[nodiscard]] auto isInitialized() const -> bool;
 
 private:
-  bool                                 initialized_{false};
+  bool                      initialized_ = false;
+  mutable SemaphoreHandle_t sensorMutex_ = nullptr;
+
   std::unique_ptr<EnvironmentalSensor> environmentalSensor_;
   std::unique_ptr<LightSensor>         lightSensor_;
   std::unique_ptr<WaterLevelSensor>    waterSensor_;
   std::unique_ptr<SoilMoistureSensor>  soilSensor_;
-  mutable SemaphoreHandle_t            sensorMutex_{nullptr};
 };

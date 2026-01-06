@@ -1,4 +1,6 @@
-#include "SensorManager.hpp"
+#include "SensorController.hpp"
+
+#include "Common.hpp"
 #include "Config.hpp"
 #include "EnvironmentalSensor.hpp"
 #include "LightSensor.hpp"
@@ -65,19 +67,19 @@ private:
 
 }  // namespace
 
-auto SensorManager::init() -> bool
+auto SensorController::init() -> bool
 {
   if (initialized_)
   {
     return true;
   }
 
-  printf("[SensorManager] Initializing...\n");
+  printf("[SensorController] Initializing...\n");
 
   sensorMutex_ = xSemaphoreCreateRecursiveMutex();
   if (sensorMutex_ == nullptr) [[unlikely]]
   {
-    printf("[SensorManager] ERROR: Failed to create sensor mutex\n");
+    printf("[SensorController] ERROR: Failed to create sensor mutex\n");
     return false;
   }
 
@@ -88,7 +90,7 @@ auto SensorManager::init() -> bool
 
   if ((sharedI2C == nullptr) or (waterI2C == nullptr)) [[unlikely]]
   {
-    printf("[SensorManager] ERROR: Invalid I2C instance configuration\n");
+    printf("[SensorController] ERROR: Invalid I2C instance configuration\n");
     return false;
   }
 
@@ -111,13 +113,13 @@ auto SensorManager::init() -> bool
   environmentalSensor_ = std::make_unique<EnvironmentalSensor>(sharedI2C, Config::BME280_I2C_ADDRESS);
   if (not environmentalSensor_->init()) [[unlikely]]
   {
-    printf("[SensorManager] WARNING: BME280 not detected\n");
+    printf("[SensorController] WARNING: BME280 not detected\n");
     environmentalSensor_.reset();
   }
   lightSensor_ = std::make_unique<LightSensor>(sharedI2C, Config::LIGHT_SENSOR_I2C_ADDRESS);
   if (not lightSensor_->init()) [[unlikely]]
   {
-    printf("[SensorManager] WARNING: BH1750 not detected\n");
+    printf("[SensorController] WARNING: BH1750 not detected\n");
     lightSensor_.reset();
   }
 
@@ -125,7 +127,7 @@ auto SensorManager::init() -> bool
                                                      Config::SOIL_MOISTURE_POWER_UP_PIN);
   if (not soilSensor_->init()) [[unlikely]]
   {
-    printf("[SensorManager] WARNING: Soil moisture sensor init failed\n");
+    printf("[SensorController] WARNING: Soil moisture sensor init failed\n");
     soilSensor_.reset();
   }
 
@@ -133,28 +135,28 @@ auto SensorManager::init() -> bool
     std::make_unique<WaterLevelSensor>(waterI2C, Config::WATER_LEVEL_LOW_ADDR, Config::WATER_LEVEL_HIGH_ADDR);
   if (not waterSensor_->init()) [[unlikely]]
   {
-    printf("[SensorManager] WARNING: Water level sensor not detected\n");
+    printf("[SensorController] WARNING: Water level sensor not detected\n");
     waterSensor_.reset();
   }
 
   initialized_ = true;
-  printf("[SensorManager] Initialization complete\n");
+  printf("[SensorController] Initialization complete\n");
   return true;
 }
 
-auto SensorManager::readAllSensors() -> SensorData
+auto SensorController::readAllSensors() -> SensorData
 {
   const auto data = SensorData{
     .environment = readBME280(),
     .light       = readLightLevel(),
     .soil        = readSoilMoisture(),
     .water       = readWaterLevel(),
-    .timestamp   = to_ms_since_boot(get_absolute_time()),
+    .timestamp   = Utils::getTimeSinceBoot(),
   };
   return data;
 }
 
-auto SensorManager::readBME280() -> EnvironmentData
+auto SensorController::readBME280() -> EnvironmentData
 {
   const MutexGuard guard(sensorMutex_);
 
@@ -172,7 +174,7 @@ auto SensorManager::readBME280() -> EnvironmentData
   return measurement.value();
 }
 
-auto SensorManager::readLightLevel() const -> LightLevelData
+auto SensorController::readLightLevel() const -> LightLevelData
 {
   const MutexGuard guard(sensorMutex_);
 
@@ -190,7 +192,7 @@ auto SensorManager::readLightLevel() const -> LightLevelData
   return measurement.value();
 }
 
-auto SensorManager::readSoilMoisture() const -> SoilMoistureData
+auto SensorController::readSoilMoisture() const -> SoilMoistureData
 {
   const MutexGuard guard(sensorMutex_);
 
@@ -208,7 +210,7 @@ auto SensorManager::readSoilMoisture() const -> SoilMoistureData
   return measurement.value();
 }
 
-auto SensorManager::readWaterLevel() const -> WaterLevelData
+auto SensorController::readWaterLevel() const -> WaterLevelData
 {
   const MutexGuard guard(sensorMutex_);
 
@@ -226,10 +228,15 @@ auto SensorManager::readWaterLevel() const -> WaterLevelData
   return measurement.value();
 }
 
-void SensorManager::calibrateSoilMoisture(const uint16_t dryValue, const uint16_t wetValue)
+void SensorController::calibrateSoilMoisture(const uint16_t dryValue, const uint16_t wetValue)
 {
   if (soilSensor_)
   {
     soilSensor_->calibrate(dryValue, wetValue);
   }
+}
+
+auto SensorController::isInitialized() const -> bool
+{
+  return initialized_;
 }

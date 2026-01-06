@@ -1,6 +1,7 @@
 add_library(target_utils)
 target_sources(target_utils PRIVATE
     src/FlashManager.cpp
+    src/Common.cpp
 )
 target_include_directories(target_utils PUBLIC
     inc

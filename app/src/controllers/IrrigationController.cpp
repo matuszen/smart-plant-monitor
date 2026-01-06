@@ -1,6 +1,8 @@
 #include "IrrigationController.hpp"
+#include "SensorController.hpp"
+
+#include "Common.hpp"
 #include "Config.hpp"
-#include "SensorManager.hpp"
 #include "Types.hpp"
 
 #include <hardware/gpio.h>
@@ -11,7 +13,7 @@
 #include <cstdint>
 #include <cstdio>
 
-IrrigationController::IrrigationController(SensorManager* sensorManager) : sensorManager_(sensorManager)
+IrrigationController::IrrigationController(SensorController* sensorController) : sensorController_(sensorController)
 {
 }
 
@@ -34,7 +36,7 @@ auto IrrigationController::init() -> bool
 
   gpio_init(Config::PUMP_CONTROL_PIN);
   gpio_set_dir(Config::PUMP_CONTROL_PIN, GPIO_OUT);
-  activateRelay(false);
+  activateWaterPump(false);
 
   initialized_ = true;
   printf("[IrrigationController] Initialization complete\n");
@@ -71,7 +73,7 @@ void IrrigationController::checkWateringTimeout()
     return;
   }
 
-  const auto now = to_ms_since_boot(get_absolute_time());
+  const auto now = Utils::getTimeSinceBoot();
   if ((now - wateringStartTime_) >= wateringDuration_)
   {
     printf("[IrrigationController] Watering duration elapsed, stopping\n");
@@ -98,9 +100,9 @@ void IrrigationController::startWatering(const uint32_t durationMs)
   printf("[IrrigationController] Starting watering for %u ms\n", wateringDuration_);
 
   isWatering_        = true;
-  wateringStartTime_ = to_ms_since_boot(get_absolute_time());
+  wateringStartTime_ = Utils::getTimeSinceBoot();
   sleepHintMs_       = Config::IRRIGATION_ACTIVE_TICK_MS;
-  activateRelay(true);
+  activateWaterPump(true);
 }
 
 void IrrigationController::stopWatering()
@@ -114,9 +116,9 @@ void IrrigationController::stopWatering()
   printf("[IrrigationController] Stopping watering\n");
 
   isWatering_       = false;
-  lastWateringTime_ = to_ms_since_boot(get_absolute_time());
+  lastWateringTime_ = Utils::getTimeSinceBoot();
   sleepHintMs_      = Config::IRRIGATION_ACTIVE_TICK_MS;
-  activateRelay(false);
+  activateWaterPump(false);
 }
 
 void IrrigationController::setMode(const IrrigationMode mode)
@@ -145,25 +147,25 @@ auto IrrigationController::nextSleepHintMs() const -> uint32_t
   return sleepHintMs_;
 }
 
-void IrrigationController::activateRelay(const bool enable)
+void IrrigationController::activateWaterPump(const bool enable)
 {
   gpio_put(Config::PUMP_CONTROL_PIN, enable);
 }
 
 auto IrrigationController::shouldStartWatering() const -> bool
 {
-  if ((sensorManager_ == nullptr) or not sensorManager_->isInitialized())
+  if ((sensorController_ == nullptr) or not sensorController_->isInitialized())
   {
     return false;
   }
 
-  const auto soilData = sensorManager_->readSoilMoisture();
+  const auto soilData = sensorController_->readSoilMoisture();
   if (not soilData.valid) [[unlikely]]
   {
     return false;
   }
 
-  const auto waterLevel = sensorManager_->readWaterLevel();
+  const auto waterLevel = sensorController_->readWaterLevel();
   if (not waterLevel.isValid()) [[unlikely]]
   {
     return false;
@@ -183,7 +185,7 @@ auto IrrigationController::canStartWatering() const -> bool
     return true;
   }
 
-  const auto now           = to_ms_since_boot(get_absolute_time());
+  const auto now           = Utils::getTimeSinceBoot();
   const auto timeSinceLast = now - lastWateringTime_;
 
   return timeSinceLast >= Config::WATERING_COOLDOWN_MS;
@@ -246,7 +248,7 @@ void IrrigationController::handleEvapotranspirationMode(const SensorData& sensor
   if (dropPerHour <= 0.0F)
   {
     sleepHintMs_            = Config::EVAPO_MAX_SLEEP_MS;
-    nextWateringEstimateMs_ = to_ms_since_boot(get_absolute_time()) + sleepHintMs_;
+    nextWateringEstimateMs_ = Utils::getTimeSinceBoot() + sleepHintMs_;
     return;
   }
 
@@ -257,7 +259,7 @@ void IrrigationController::handleEvapotranspirationMode(const SensorData& sensor
                                            static_cast<double>(Config::EVAPO_MAX_SLEEP_MS));
 
   sleepHintMs_            = static_cast<uint32_t>(clampedSleepMs);
-  nextWateringEstimateMs_ = to_ms_since_boot(get_absolute_time()) + sleepHintMs_;
+  nextWateringEstimateMs_ = Utils::getTimeSinceBoot() + sleepHintMs_;
 
   printf("[IrrigationController] ET forecast: %.2f%%/h, next check in %u ms (eta %u)\n", dropPerHour, sleepHintMs_,
          nextWateringEstimateMs_);

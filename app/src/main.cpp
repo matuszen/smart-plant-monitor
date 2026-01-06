@@ -1,10 +1,11 @@
-#include "AppTasks.hpp"
-#include "Config.hpp"
-#include "ConnectionManager.hpp"
-#include "FlashManager.hpp"
+#include "ConnectionController.hpp"
 #include "IrrigationController.hpp"
+#include "SensorController.hpp"
+#include "TaskEntry.hpp"
+
+#include "Config.hpp"
+#include "FlashManager.hpp"
 #include "MQTTClient.hpp"
-#include "SensorManager.hpp"
 #include "Types.hpp"
 
 #include <FreeRTOS.h>
@@ -22,10 +23,10 @@
 namespace
 {
 
-SensorManager        sensorManager;
-IrrigationController irrigationController(&sensorManager);
-MQTTClient           mqttClient(&sensorManager, &irrigationController);
-ConnectionManager    wifiProvisioner;
+SensorController     sensorController;
+IrrigationController irrigationController(&sensorController);
+MQTTClient           mqttClient(&sensorController, &irrigationController);
+ConnectionController wifiProvisioner;
 
 void initSystem()
 {
@@ -35,9 +36,9 @@ void initSystem()
          static_cast<int32_t>(Config::System::VERSION.size()), Config::System::VERSION.data());
   printf("=================================================\n\n");
 
-  if (not sensorManager.init()) [[unlikely]]
+  if (not sensorController.init()) [[unlikely]]
   {
-    printf("ERROR: SensorManager initialization failed!\n");
+    printf("ERROR: SensorController initialization failed!\n");
   }
 
   if (not irrigationController.init()) [[unlikely]]
